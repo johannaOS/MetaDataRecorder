@@ -13,6 +13,8 @@ import {
   View,
 } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -20,6 +22,7 @@ import {
   deleteCustomField,
   FieldConfig,
   getAllFields,
+  MAX_FIELDS,
   moveFieldDown,
   moveFieldUp,
   updateFieldVisibility,
@@ -29,6 +32,7 @@ import { S } from '@/lib/strings';
 export default function FieldsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [fields, setFields] = useState<FieldConfig[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,7 +80,12 @@ export default function FieldsScreen() {
   function confirmAddField() {
     const label = newLabel.trim();
     if (!label) return;
-    addCustomField(label);
+    const key = addCustomField(label);
+    if (key === null) {
+      setShowAddModal(false);
+      Alert.alert(S.maxFieldsTitle, S.maxFieldsMessage);
+      return;
+    }
     setNewLabel('');
     setShowAddModal(false);
     reload();
@@ -132,13 +141,21 @@ export default function FieldsScreen() {
         data={fields}
         keyExtractor={f => f.key}
         renderItem={({ item, index }) => renderRow({ item, index })}
+        contentContainerStyle={{ paddingBottom: insets.bottom }}
         ListFooterComponent={
           <TouchableOpacity
-            style={[styles.addBtn, { borderColor: '#00A878' }]}
-            onPress={() => { setNewLabel(''); setShowAddModal(true); }}
+            style={[styles.addBtn, { borderColor: fields.length >= MAX_FIELDS ? colors.icon + '44' : '#00A878' }]}
+            onPress={() => {
+              if (fields.length >= MAX_FIELDS) {
+                Alert.alert(S.maxFieldsTitle, S.maxFieldsMessage);
+                return;
+              }
+              setNewLabel('');
+              setShowAddModal(true);
+            }}
           >
-            <Ionicons name="add-circle-outline" size={20} color="#00A878" />
-            <Text style={[styles.addBtnText, { color: '#00A878' }]}>{S.addField}</Text>
+            <Ionicons name="add-circle-outline" size={20} color={fields.length >= MAX_FIELDS ? colors.icon : '#00A878'} />
+            <Text style={[styles.addBtnText, { color: fields.length >= MAX_FIELDS ? colors.icon : '#00A878' }]}>{S.addField}</Text>
           </TouchableOpacity>
         }
       />

@@ -47,6 +47,8 @@ export const S = {
   newFieldPlaceholder: 'Fältnamn…',
   deleteField: 'Radera fält',
   builtInFieldHint: 'Inbyggt fält kan inte raderas',
+  maxFieldsTitle: 'Maximalt antal fält nått',
+  maxFieldsMessage: 'Du kan ha högst 20 fält totalt (inklusive dolda fält). Radera ett befintligt fält för att frigöra plats.',
 
   // ── Filter keywords ───────────────────────────────────────────────────────────
   addKeyword: 'Lägg till sökord',

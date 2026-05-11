@@ -13,6 +13,7 @@ import {
   updateRecording,
   deleteRecording,
   getUniqueSongTypes,
+  MAX_FIELDS,
   getAllFields,
   getVisibleFields,
   updateFieldVisibility,
@@ -294,6 +295,53 @@ describe('field visibility update is immediately visible to next caller', () => 
     const key = addCustomField('ImmediateTest');
     expect(getVisibleFields().some(f => f.key === key)).toBe(true);
     deleteCustomField(key);
+  });
+});
+
+// ── addCustomField — maximum field limit ──────────────────────────────────────
+
+describe('addCustomField — 20-field maximum', () => {
+  const addedKeys: string[] = [];
+
+  afterAll(() => {
+    addedKeys.forEach(k => deleteCustomField(k));
+  });
+
+  it('accepts fields up to the MAX_FIELDS limit', () => {
+    const current = getAllFields().length;
+    const toAdd = MAX_FIELDS - current;
+    for (let i = 0; i < toAdd; i++) {
+      const key = addCustomField(`MaxTest${i}`);
+      expect(key).not.toBeNull();
+      if (key) addedKeys.push(key);
+    }
+    expect(getAllFields().length).toBe(MAX_FIELDS);
+  });
+
+  it('returns null when total field count is already at MAX_FIELDS', () => {
+    expect(getAllFields().length).toBe(MAX_FIELDS);
+    const result = addCustomField('OverLimit');
+    expect(result).toBeNull();
+  });
+
+  it('does not add a field when at the limit — count stays at MAX_FIELDS', () => {
+    addCustomField('OverLimit2');
+    expect(getAllFields().length).toBe(MAX_FIELDS);
+  });
+
+  it('hidden fields still count toward the limit — hiding does not free a slot', () => {
+    // We are at MAX_FIELDS. Hide one of the built-in fields.
+    updateFieldVisibility('notes', false);
+
+    // The total count (getAllFields) is still MAX_FIELDS — visibility does not change it.
+    expect(getAllFields().length).toBe(MAX_FIELDS);
+
+    // Adding another field must still be blocked.
+    const result = addCustomField('AfterHide');
+    expect(result).toBeNull();
+
+    // Restore visibility.
+    updateFieldVisibility('notes', true);
   });
 });
 

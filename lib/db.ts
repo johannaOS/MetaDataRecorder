@@ -209,7 +209,10 @@ export function moveFieldDown(key: string) {
   db.runSync('UPDATE fields SET sortOrder = ? WHERE key = ?', below.sortOrder, curr.key);
 }
 
-export function addCustomField(label: string): string {
+export const MAX_FIELDS = 20;
+
+export function addCustomField(label: string): string | null {
+  if (getAllFields().length >= MAX_FIELDS) return null;
   const key = `custom_${Date.now()}`;
   db.runSync(
     `INSERT INTO fields (key, label, isBuiltIn, isVisible, sortOrder)

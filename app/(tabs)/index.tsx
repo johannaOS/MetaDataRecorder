@@ -14,12 +14,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { extractOfAfter, extractOrigin, extractSongType } from '@/lib/autoFill';
 import { consumeAutoRecord } from '@/lib/autoRecord';
-import { FieldConfig, getVisibleFields, insertRecording } from '@/lib/db';
+import { insertRecording } from '@/lib/db';
+import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 
@@ -54,6 +56,7 @@ const COMPACT_RECORDER_HEIGHT = 52;
 export default function RecorderScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   // ── Recording state ───────────────────────────────────────────────────────────
   const [state, setState] = useState<RecorderState>('idle');
@@ -90,16 +93,29 @@ export default function RecorderScreen() {
   // Tracks the last-focused field so we can restore focus on Screen 2
   const lastFocusedFieldRef = useRef<string>('name');
   const [formCustomValues, setFormCustomValues] = useState<Record<string, string>>({});
-  const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([]);
+  const [fieldConfigs, reloadFieldConfigs] = useFieldConfig();
 
-  // ── Auto-record when arriving from Library; reload field config on focus ────────
+  // ── Auto-record when arriving from Library ────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
-      setFieldConfigs(getVisibleFields());
       if (consumeAutoRecord() && state === 'idle') startRecording();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state])
   );
+
+  // ── Reload field config on focus ──────────────────────────────────────────────
+  // Fires every time Screen 1 regains focus, including when returning from
+  // /fields while the form is already open (isFormExpanded stays true and the
+  // useEffect below does not fire in that case).
+  useFocusEffect(useCallback(() => { reloadFieldConfigs(); }, []));
+
+  // ── Reload field config when inline form opens ────────────────────────────────
+  // Catches the first open of the form within a focus session, before any
+  // navigation has occurred.
+  useEffect(() => {
+    if (isFormExpanded) reloadFieldConfigs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormExpanded]);
 
   // ── Button pulse ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -347,6 +363,15 @@ export default function RecorderScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {/* Field management icon — top-right of form, shifted down by top inset */}
+            <TouchableOpacity
+              style={[styles.formManageBtn, { marginTop: insets.top }]}
+              onPress={() => router.push('/fields')}
+              hitSlop={8}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.icon} />
+            </TouchableOpacity>
+
             {/* Title */}
             <Text style={[styles.formLabel, { color: colors.icon }]}>{S.fieldTitle}</Text>
             <TextInput
@@ -434,8 +459,8 @@ export default function RecorderScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Compact recorder strip — fixed height, single tight row */}
-          <View style={[styles.recorderStrip, { height: COMPACT_RECORDER_HEIGHT, borderTopColor: colors.icon + '33' }]}>
+          {/* Compact recorder strip — fixed height plus bottom inset for nav bar */}
+          <View style={[styles.recorderStrip, { height: COMPACT_RECORDER_HEIGHT + insets.bottom, paddingBottom: insets.bottom, borderTopColor: colors.icon + '33' }]}>
             <Text style={[styles.stripTimer, isPaused && { color: colors.icon }]}>
               {formatTime(elapsed)}
             </Text>
@@ -628,6 +653,7 @@ const styles = StyleSheet.create({
 
   // ── Inline form ───────────────────────────────────────────────────────────────
   formScroll: { padding: 16, paddingBottom: 24 },
+  formManageBtn: { alignSelf: 'flex-end', padding: 4, marginBottom: 4 },
   formLabel: {
     fontSize: 11, fontWeight: '600',
     textTransform: 'uppercase', letterSpacing: 0.5,

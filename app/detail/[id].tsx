@@ -16,9 +16,12 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { deleteRecording, FieldConfig, getRecordingById, getVisibleFields, parseCustomData, Recording, updateRecording } from '@/lib/db';
+import { deleteRecording, getRecordingById, parseCustomData, Recording, updateRecording } from '@/lib/db';
+import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
@@ -40,6 +43,7 @@ export default function DetailScreen() {
   const { id, autoPlay, openEdit } = useLocalSearchParams<{ id: string; autoPlay?: string; openEdit?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const [recording, setRecording] = useState<Recording | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -52,7 +56,7 @@ export default function DetailScreen() {
   const [editPerformer, setEditPerformer] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editCustomValues, setEditCustomValues] = useState<Record<string, string>>({});
-  const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([]);
+  const [fieldConfigs] = useFieldConfig();
 
   // Player state
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -63,9 +67,8 @@ export default function DetailScreen() {
   const wasPlayingRef = useRef(false);
   const hasFinishedRef = useRef(false);
 
-  // Load recording and field config on mount
+  // Load recording on mount
   useEffect(() => {
-    setFieldConfigs(getVisibleFields());
     const r = getRecordingById(Number(id));
     setRecording(r);
     if (r) {
@@ -293,7 +296,7 @@ export default function DetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingBottom: 48 + insets.bottom }]}
           keyboardShouldPersistTaps="handled"
         >
           {/* ── Player ─────────────────────────────────────────────────────── */}
@@ -439,7 +442,7 @@ export default function DetailScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { paddingBottom: 48 },
+  scroll: {},
 
   // Header
   headerBtns: { flexDirection: 'row', gap: 4 },

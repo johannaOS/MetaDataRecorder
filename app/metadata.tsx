@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { File } from 'expo-file-system';
-import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -15,11 +15,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { clearActiveRecording, getActiveRecording } from '@/lib/activeRecording';
-import { FieldConfig, getVisibleFields, insertRecording } from '@/lib/db';
+import { FieldConfig, insertRecording } from '@/lib/db';
+import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 
@@ -34,6 +36,7 @@ function formatTime(s: number) {
 export default function MetadataScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const {
     filePath: filePathParam, duration: durationParam, mode, elapsedAtStart,
@@ -64,7 +67,7 @@ export default function MetadataScreen() {
   const [customValues, setCustomValues] = useState<Record<string, string>>(
     preFilledCustomData ? (() => { try { return JSON.parse(preFilledCustomData); } catch { return {}; } })() : {}
   );
-  const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([]);
+  const [fieldConfigs] = useFieldConfig();
 
   // ── Resolved file info (set after stopping live recording, or from params) ──
   const [resolvedFilePath, setResolvedFilePath] = useState<string>(filePathParam ?? '');
@@ -120,7 +123,6 @@ export default function MetadataScreen() {
 
   // Reload field configuration every time Screen 2 gains focus so changes from
   // the field management screen are reflected immediately without a save.
-  useFocusEffect(useCallback(() => { setFieldConfigs(getVisibleFields()); }, []));
 
   // Safety: stop any orphaned recording if this screen unmounts unexpectedly
   useEffect(() => {
@@ -400,8 +402,8 @@ export default function MetadataScreen() {
 
       </ScrollView>
 
-      {/* Buttons fixed below scroll area — always visible, never hidden by keyboard */}
-      <View style={[styles.buttons, { borderTopColor: colors.icon + '22' }]}>
+      {/* Buttons fixed below scroll area — always visible, never hidden by keyboard or nav bar */}
+      <View style={[styles.buttons, { borderTopColor: colors.icon + '22', paddingBottom: 16 + insets.bottom }]}>
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: SAVE_COLOR }]}
           onPress={handleSave}

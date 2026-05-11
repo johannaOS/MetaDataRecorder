@@ -4,7 +4,8 @@
       "Bash(npx tsc *)",
       "Bash(npx expo *)",
       "Bash(npm install *)",
-      "Bash(npx jest *)"
+      "Bash(npx jest *)",
+      "Bash(npm test *)"
     ]
   }
 }
