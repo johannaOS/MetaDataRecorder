@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "MetaDataRecorder",
-    "slug": "MetaDataRecorder",
+    "name": "Voice Recorder with Metadata",
+    "slug": "VoiceRecorder",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "metadatarecorder",
+    "scheme": "voicerecorder",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -19,7 +19,15 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_AUDIO"
+      ],
+      "package": "com.johannaos.VoiceRecorder"
     },
     "web": {
       "output": "static",
@@ -27,6 +35,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Voice Recorder with Metadata to record audio."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -38,11 +52,26 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      "expo-sqlite",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Voice Recorder with Metadata to save recordings to your Music library.",
+          "savePhotosPermission": "Allow Voice Recorder with Metadata to save recordings to your Music library.",
+          "isAccessMediaLocationEnabled": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fe1d2dc8-3a6d-4dc0-a40b-6911b174bf61"
+      }
     }
   }
 }
