@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as MediaLibrary from 'expo-media-library';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -21,7 +22,8 @@ export default function RootLayout() {
   useEffect(() => {
     initDb();
 
-    // Request notification permission and set up the recording notification channel.
+    // Pre-request permissions at startup so they are never triggered mid-recording.
+    MediaLibrary.requestPermissionsAsync().catch(() => {});
     Notifications.requestPermissionsAsync().catch(() => {});
     initRecordingNotifications().catch(() => {});
   }, []);

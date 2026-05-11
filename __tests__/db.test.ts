@@ -354,6 +354,7 @@ describe('keyword management', () => {
     expect(labels).toContain('Schottis');
     expect(labels).toContain('Vals');
     expect(labels).toContain('Polska');
+    expect(labels).toContain('Polonäs');
   });
 
   it('returns keywords in sortOrder', () => {

@@ -34,9 +34,9 @@ describe('extractOfAfter', () => {
     expect(extractOfAfter('Polska AV Nils')).not.toBeNull();
   });
 
-  it('includes everything from the keyword to end of string when no "från"', () => {
+  it('limits result to keyword + 2 words (no "från")', () => {
     expect(extractOfAfter('Brudmarsch efter Lena Larsson i Malung')).toBe(
-      'efter Lena Larsson i Malung'
+      'efter Lena Larsson'
     );
   });
 
@@ -78,8 +78,8 @@ describe('extractOrigin', () => {
     expect(extractOrigin('Vals från Malung')).toBe('Malung');
   });
 
-  it('captures multi-word origins', () => {
-    expect(extractOrigin('Polska från Dalarna, Sverige')).toBe('Dalarna, Sverige');
+  it('captures only the first word, stripping trailing punctuation', () => {
+    expect(extractOrigin('Polska från Dalarna, Sverige')).toBe('Dalarna');
   });
 
   it('returns null when no "från" keyword is present', () => {
@@ -129,8 +129,17 @@ describe('extractSongType', () => {
     expect(extractSongType(input)).toBe(expected);
   });
 
+  it('detects "polonäs"', () => {
+    expect(extractSongType('Polonäs från Dalarna')).toBe('Polonäs');
+  });
+
   it('prefers compound type "slängpolska" over "polska"', () => {
     expect(extractSongType('Slängpolska från Rättvik')).toBe('Slängpolska');
+  });
+
+  it('prefers "polonäs" over "polska" (polonäs listed first)', () => {
+    // A title containing "polonäs" must not match "polska" instead.
+    expect(extractSongType('En fin polonäs')).toBe('Polonäs');
   });
 
   it('prefers "brudmarsch" over "marsch"', () => {

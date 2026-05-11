@@ -22,9 +22,11 @@ import {
   deleteCustomField,
   FieldConfig,
   getAllFields,
+  getAllRecordings,
   MAX_FIELDS,
   moveFieldDown,
   moveFieldUp,
+  parseCustomData,
   updateFieldVisibility,
 } from '@/lib/db';
 import { S } from '@/lib/strings';
@@ -64,7 +66,20 @@ export default function FieldsScreen() {
       Alert.alert(field.label, S.builtInFieldHint);
       return;
     }
-    Alert.alert(field.label, S.deleteField + '?', [
+
+    // Count how many recordings have data stored in this custom field.
+    const count = getAllRecordings().filter(r => {
+      const data = parseCustomData(r.customData);
+      return data[field.key] != null && String(data[field.key]).trim() !== '';
+    }).length;
+
+    const message = count > 0
+      ? count === 1
+        ? `1 inspelning har data i fältet "${field.label}". Om du raderar fältet tas denna data bort permanent.`
+        : `${count} inspelningar har data i fältet "${field.label}". Om du raderar fältet tas all denna data bort permanent.`
+      : `${S.deleteField}?`;
+
+    Alert.alert(field.label, message, [
       { text: S.cancel, style: 'cancel' },
       {
         text: S.delete,

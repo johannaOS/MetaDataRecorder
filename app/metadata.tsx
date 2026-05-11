@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { File } from 'expo-file-system';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -68,6 +69,17 @@ export default function MetadataScreen() {
     preFilledCustomData ? (() => { try { return JSON.parse(preFilledCustomData); } catch { return {}; } })() : {}
   );
   const [fieldConfigs] = useFieldConfig();
+
+  // ── Intercept hardware back button to show discard confirmation (Bug 3) ───────
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleDiscard(); // Already shows a confirmation Alert before doing anything
+        return true;
+      });
+      return () => sub.remove();
+    }, [])
+  );
 
   // ── Resolved file info (set after stopping live recording, or from params) ──
   const [resolvedFilePath, setResolvedFilePath] = useState<string>(filePathParam ?? '');

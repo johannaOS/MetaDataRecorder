@@ -1,25 +1,28 @@
 // Detects "efter", "av", or "trad" followed by more text → fills Of/after field.
-// Stops at "från" so compound names like "av Axel Samuelsson från Dalarna" produce
-// "av Axel Samuelsson" here and "Dalarna" in the From field.
+// Stops at "från" and limits result to the keyword plus at most 2 words.
 export function extractOfAfter(name: string): string | null {
   const match = name.match(/\b(efter|av|trad\.?)\s+\S.*/i);
   if (!match) return null;
-  const raw = match[0];
+  let raw = match[0];
   const franIdx = raw.search(/\bfrån\b/i);
-  const result = franIdx >= 0 ? raw.slice(0, franIdx).trim() : raw.trim();
+  if (franIdx >= 0) raw = raw.slice(0, franIdx).trim();
+  // keyword + up to 2 words
+  const parts = raw.split(/\s+/);
+  const result = parts.slice(0, 3).join(' ').trim();
   return result || null;
 }
 
-// Detects "från" followed by more text → fills the From (origin) field.
-// Returns only the text after "från ", not the keyword itself.
+// Detects "från" followed by text → fills the From (origin) field.
+// Returns only the first word after "från" (trailing punctuation stripped).
 export function extractOrigin(name: string): string | null {
-  const match = name.match(/\bfrån\s+(\S.*)/i);
-  return match ? match[1].trim() : null;
+  const match = name.match(/\bfrån\s+(\S+)/i);
+  if (!match) return null;
+  return match[1].replace(/[.,;:!?]+$/, '') || null;
 }
 
 const SONG_TYPE_KEYWORDS = [
   'slängpolska', 'gånglåt', 'brudmarsch', 'brudlåt',
-  'schottis', 'polska', 'hambo', 'reinlender', 'mazurka',
+  'schottis', 'polonäs', 'polska', 'hambo', 'reinlender', 'mazurka',
   'marsch', 'vals', 'visa', 'låt',
 ];
 

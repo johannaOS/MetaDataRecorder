@@ -58,7 +58,16 @@ export default function LibraryScreen() {
 
   function reload(q: string, tf: string | null) {
     setKeywords(getAllKeywords());
-    setRecordings(getAllRecordings(q || undefined, tf ?? undefined));
+    const results = getAllRecordings(q || undefined);
+    // Fix 14: filter keyword matches songType OR recording title
+    setRecordings(
+      tf
+        ? results.filter(r =>
+            r.songType === tf ||
+            r.name.toLowerCase().includes(tf.toLowerCase())
+          )
+        : results
+    );
   }
 
   function handleAddKeyword() {
@@ -182,7 +191,7 @@ export default function LibraryScreen() {
       <TouchableOpacity
         style={[styles.row, { borderBottomColor: colors.icon + '33' }]}
         onPress={() =>
-          router.push({ pathname: '/detail/[id]', params: { id: String(item.id), autoPlay: '1' } })
+          router.push({ pathname: '/detail/[id]', params: { id: String(item.id) } })
         }
         onLongPress={() => setSheetItem(item)}
         delayLongPress={400}
@@ -226,10 +235,14 @@ export default function LibraryScreen() {
           placeholderTextColor={colors.icon}
           value={search}
           onChangeText={setSearch}
-          clearButtonMode="while-editing"
           autoCorrect={false}
           returnKeyType="search"
         />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={16} color={colors.icon} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Filter row — user-managed keywords with + button */}
@@ -350,7 +363,7 @@ export default function LibraryScreen() {
       <View style={[styles.fabContainer, { bottom: 24 + insets.bottom }]} pointerEvents="box-none">
         <TouchableOpacity
           style={styles.fab}
-          onPress={() => { requestAutoRecord(); router.push('/'); }}
+          onPress={() => { requestAutoRecord(); router.replace('/'); }}
           activeOpacity={0.8}
         >
           <Ionicons name="mic" size={32} color="white" />

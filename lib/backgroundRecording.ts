@@ -37,9 +37,12 @@ export async function initRecordingNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: 'Inspelning pågår',
-      importance: Notifications.AndroidImportance.LOW,
+      // DEFAULT importance: always visible in the shade without making a sound.
+      // LOW was hiding the notification on some devices; HIGH triggers heads-up popups.
+      importance: Notifications.AndroidImportance.DEFAULT,
       enableVibrate: false,
       showBadge: false,
+      sound: null,
     });
   }
 

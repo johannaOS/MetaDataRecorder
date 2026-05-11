@@ -44,7 +44,7 @@ export interface Keyword {
   sortOrder: number;
 }
 
-const DEFAULT_KEYWORDS = ['Schottis', 'Vals', 'Polska'];
+const DEFAULT_KEYWORDS = ['Schottis', 'Vals', 'Polska', 'Polonäs'];
 
 // ── DB init ───────────────────────────────────────────────────────────────────
 

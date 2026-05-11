@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -7,6 +7,7 @@ import {
   Alert,
   Animated,
   AppState,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -116,6 +117,22 @@ export default function RecorderScreen() {
     }, [state])
   );
 
+  // ── Intercept hardware back button during recording (Bug 2) ──────────────────
+  useFocusEffect(
+    useCallback(() => {
+      if (state === 'idle') return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert(S.discardRecording, S.discardRecordingMessage, [
+          { text: S.keepEditing, style: 'cancel' },
+          { text: S.discard, style: 'destructive', onPress: handleDiscardRecording },
+        ]);
+        return true; // Prevent default back navigation
+      });
+      return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state])
+  );
+
   // ── Reload field config on focus ──────────────────────────────────────────────
   // Fires every time Screen 1 regains focus, including when returning from
   // /fields while the form is already open (isFormExpanded stays true and the
@@ -142,10 +159,18 @@ export default function RecorderScreen() {
       if (nextState !== 'active' || !recordingRef.current) return;
       try {
         const status = await recordingRef.current.getStatusAsync();
-        if (status.isLoaded && status.durationMillis != null) {
+        if (!status.isLoaded) return;
+        // Sync elapsed from the real recording clock — the JS timer may have
+        // drifted or stopped while the screen was locked or the app was backgrounded.
+        if (status.durationMillis != null) {
           const actual = Math.round(status.durationMillis / 1000);
           elapsedRef.current = actual;
           setElapsed(actual);
+        }
+        // Restart the UI timer if the recording is still active but the interval
+        // was cleared (can happen on Android with aggressive battery optimisation).
+        if (status.isRecording && !timerRef.current) {
+          startTimer();
         }
       } catch { /* recording may have been stopped concurrently */ }
     });
@@ -251,6 +276,11 @@ export default function RecorderScreen() {
       allowsRecordingIOS: true,
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
+      // Request permanent audio focus on Android so recording survives another
+      // app taking foreground (e.g. a metronome) and lock/unlock cycles.
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+      shouldDuckAndroid: false,
+      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
     });
     try {
       const { recording } = await Audio.Recording.createAsync({
@@ -297,6 +327,20 @@ export default function RecorderScreen() {
     }
   }
 
+  // ── Discard recording (no save, back-button confirmation) ────────────────────
+  async function handleDiscardRecording() {
+    if (!recordingRef.current) return;
+    setIsFormExpanded(false);
+    stopTimer();
+    stopMeterPolling();
+    hideRecordingNotification().catch(() => {});
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+    } catch { /* already stopped */ }
+    setSavedMeta(null);
+    resetRecorderState();
+  }
+
   // Stop is ALWAYS called before any navigation. Never passes a live recording anywhere.
   async function handleStop() {
     if (!recordingRef.current) return;
@@ -327,7 +371,11 @@ export default function RecorderScreen() {
         return;
       }
 
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      // On iOS only: reset audio mode so playback works through the speaker after recording.
+      // Skipped on Android — calling setAudioModeAsync there triggers a MODIFY_AUDIO popup.
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      }
       const finalUri = await copyToPermanentStorage(cacheUri);
       console.log('[Recorder] permanent path saved to DB:', finalUri);
 
@@ -416,6 +464,9 @@ export default function RecorderScreen() {
     styles.formInput,
     { color: colors.text, borderColor: colors.icon + '44', backgroundColor: colors.background },
   ];
+  // Null while fieldConfigs hasn't loaded yet → show all fields.
+  const visibleFieldKeys: Set<string> | null =
+    fieldConfigs.length > 0 ? new Set(fieldConfigs.map(f => f.key)) : null;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -442,68 +493,79 @@ export default function RecorderScreen() {
               <Ionicons name="create-outline" size={20} color={colors.icon} />
             </TouchableOpacity>
 
-            {/* Title */}
-            <Text style={[styles.formLabel, { color: colors.icon }]}>{S.fieldTitle}</Text>
-            <TextInput
-              style={formInputStyle}
-              placeholder={S.placeholderUntitled}
-              placeholderTextColor={colors.icon}
-              value={formName}
-              onChangeText={setFormName}
-              autoFocus
-              returnKeyType="next"
-              onFocus={() => { lastFocusedFieldRef.current = 'name'; }}
-              onSubmitEditing={() => formOfAfterRef.current?.focus()}
-            />
+            {/* Built-in fields — each hidden when the field is disabled in field management */}
+            {(!visibleFieldKeys || visibleFieldKeys.has('name')) && (<>
+              <Text style={[styles.formLabel, { color: colors.icon }]}>{S.fieldTitle}</Text>
+              <TextInput
+                style={formInputStyle}
+                placeholder={S.placeholderUntitled}
+                placeholderTextColor={colors.icon}
+                value={formName}
+                onChangeText={setFormName}
+                autoFocus
+                returnKeyType="next"
+                onFocus={() => { lastFocusedFieldRef.current = 'name'; }}
+                onSubmitEditing={() => formOfAfterRef.current?.focus()}
+              />
+            </>)}
 
-            {/* Of/after chips — extra top margin so they don't crowd the Title input */}
-            <View style={styles.formChips}>
-              {(['efter', 'av', 'Trad.'] as const).map(word => (
-                <TouchableOpacity key={word} style={[styles.chip, { borderColor: colors.text }]} onPress={() => prependFormOfAfter(word)}>
-                  <Text style={[styles.chipText, { color: colors.text }]}>{word}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              ref={formOfAfterRef}
-              style={[formInputStyle, formOfAfterIsAuto && { color: colors.icon }]}
-              placeholder={S.placeholderOfAfter}
-              placeholderTextColor={colors.icon}
-              value={formOfAfter}
-              onChangeText={t => { formOfAfterLockedRef.current = true; setFormOfAfterIsAuto(false); setFormOfAfter(t); }}
-              onFocus={() => { lastFocusedFieldRef.current = 'ofAfter'; }}
-              returnKeyType="next"
-              onSubmitEditing={() => formOriginRef.current?.focus()}
-            />
+            {(!visibleFieldKeys || visibleFieldKeys.has('ofAfter')) && (<>
+              <View style={styles.formChips}>
+                {(['efter', 'av', 'Trad.'] as const).map(word => (
+                  <TouchableOpacity key={word} style={[styles.chip, { borderColor: colors.text }]} onPress={() => prependFormOfAfter(word)}>
+                    <Text style={[styles.chipText, { color: colors.text }]}>{word}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                ref={formOfAfterRef}
+                style={[formInputStyle, formOfAfterIsAuto && { color: colors.icon }]}
+                placeholder={S.placeholderOfAfter}
+                placeholderTextColor={colors.icon}
+                value={formOfAfter}
+                onChangeText={t => { formOfAfterLockedRef.current = true; setFormOfAfterIsAuto(false); setFormOfAfter(t); }}
+                onFocus={() => { lastFocusedFieldRef.current = 'ofAfter'; }}
+                returnKeyType="next"
+                onSubmitEditing={() => formOriginRef.current?.focus()}
+              />
+            </>)}
 
-            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldFrom}</Text>
-            <TextInput ref={formOriginRef} style={formInputStyle} placeholder={S.placeholderFrom}
-              placeholderTextColor={colors.icon} value={formOrigin}
-              onChangeText={t => { formOriginLockedRef.current = true; setFormOrigin(t); }}
-              onFocus={() => { lastFocusedFieldRef.current = 'origin'; }}
-              returnKeyType="next" onSubmitEditing={() => formSongTypeRef.current?.focus()} />
+            {(!visibleFieldKeys || visibleFieldKeys.has('origin')) && (<>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldFrom}</Text>
+              <TextInput ref={formOriginRef} style={formInputStyle} placeholder={S.placeholderFrom}
+                placeholderTextColor={colors.icon} value={formOrigin}
+                onChangeText={t => { formOriginLockedRef.current = true; setFormOrigin(t); }}
+                onFocus={() => { lastFocusedFieldRef.current = 'origin'; }}
+                returnKeyType="next" onSubmitEditing={() => formSongTypeRef.current?.focus()} />
+            </>)}
 
-            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType}</Text>
-            <TextInput ref={formSongTypeRef} style={[formInputStyle, formSongTypeIsAuto && { color: colors.icon }]}
-              placeholder={S.placeholderSongType} placeholderTextColor={colors.icon}
-              value={formSongType} onChangeText={t => { formSongTypeLockedRef.current = true; setFormSongTypeIsAuto(false); setFormSongType(t); }}
-              onFocus={() => { lastFocusedFieldRef.current = 'songType'; }}
-              returnKeyType="next" onSubmitEditing={() => formPerformerRef.current?.focus()} />
+            {(!visibleFieldKeys || visibleFieldKeys.has('songType')) && (<>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType}</Text>
+              <TextInput ref={formSongTypeRef} style={[formInputStyle, formSongTypeIsAuto && { color: colors.icon }]}
+                placeholder={S.placeholderSongType} placeholderTextColor={colors.icon}
+                value={formSongType} onChangeText={t => { formSongTypeLockedRef.current = true; setFormSongTypeIsAuto(false); setFormSongType(t); }}
+                onFocus={() => { lastFocusedFieldRef.current = 'songType'; }}
+                returnKeyType="next" onSubmitEditing={() => formPerformerRef.current?.focus()} />
+            </>)}
 
-            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldWhosPlaying}</Text>
-            <TextInput ref={formPerformerRef} style={formInputStyle} placeholder={S.placeholderPerformer}
-              placeholderTextColor={colors.icon} value={formPerformer} onChangeText={setFormPerformer}
-              onFocus={() => { lastFocusedFieldRef.current = 'performer'; }}
-              returnKeyType="next" onSubmitEditing={() => formNotesRef.current?.focus()} />
+            {(!visibleFieldKeys || visibleFieldKeys.has('performer')) && (<>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldWhosPlaying}</Text>
+              <TextInput ref={formPerformerRef} style={formInputStyle} placeholder={S.placeholderPerformer}
+                placeholderTextColor={colors.icon} value={formPerformer} onChangeText={setFormPerformer}
+                onFocus={() => { lastFocusedFieldRef.current = 'performer'; }}
+                returnKeyType="next" onSubmitEditing={() => formNotesRef.current?.focus()} />
+            </>)}
 
-            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldNotes}</Text>
-            <TextInput ref={formNotesRef} style={[formInputStyle, styles.formNotesInput]}
-              placeholder={S.placeholderNotes} placeholderTextColor={colors.icon}
-              value={formNotes} onChangeText={setFormNotes}
-              onFocus={() => { lastFocusedFieldRef.current = 'notes'; }}
-              multiline textAlignVertical="top" returnKeyType="default" blurOnSubmit />
+            {(!visibleFieldKeys || visibleFieldKeys.has('notes')) && (<>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldNotes}</Text>
+              <TextInput ref={formNotesRef} style={[formInputStyle, styles.formNotesInput]}
+                placeholder={S.placeholderNotes} placeholderTextColor={colors.icon}
+                value={formNotes} onChangeText={setFormNotes}
+                onFocus={() => { lastFocusedFieldRef.current = 'notes'; }}
+                multiline textAlignVertical="top" returnKeyType="default" blurOnSubmit />
+            </>)}
 
-            {/* Custom fields */}
+            {/* Custom fields — visibility already controlled by fieldConfigs */}
             {fieldConfigs.filter(f => !f.isBuiltIn).map(field => (
               <View key={field.key}>
                 <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{field.label}</Text>
@@ -623,7 +685,7 @@ export default function RecorderScreen() {
       {state === 'idle' && (
         <TouchableOpacity
           style={[styles.libraryButton, { borderColor: colors.text }]}
-          onPress={() => router.push('/library')}
+          onPress={() => router.replace('/library')}
         >
           <Ionicons name="library-outline" size={18} color={colors.text} />
           <Text style={[styles.libraryButtonText, { color: colors.text }]}>{S.library}</Text>
