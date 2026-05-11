@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -6,6 +7,8 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { initDb } from '@/lib/db';
+// Importing this module registers the background task at startup (module-level side effect).
+import { initRecordingNotifications } from '@/lib/backgroundRecording';
 import { S } from '@/lib/strings';
 
 export const unstable_settings = {
@@ -17,6 +20,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDb();
+
+    // Request notification permission and set up the recording notification channel.
+    Notifications.requestPermissionsAsync().catch(() => {});
+    initRecordingNotifications().catch(() => {});
   }, []);
 
   return (

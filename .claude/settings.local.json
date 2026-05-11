@@ -5,7 +5,27 @@
       "Bash(npx expo *)",
       "Bash(npm install *)",
       "Bash(npx jest *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/expo-notifications/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/expo-notifications/package.json'\\).version\\); console.log\\(require\\('./node_modules/expo-task-manager/package.json'\\).version\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/index.d.ts','utf8'\\); console.log\\(src.substring\\(0,3000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); console.log\\(src.substring\\(0,5000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('NotificationContentInput'\\); console.log\\(src.substring\\(idx, idx+3000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/scheduleNotificationAsync.d.ts','utf8'\\); console.log\\(src\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('NotificationRequestInput'\\); console.log\\(src.substring\\(idx, idx+500\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('AndroidImportance'\\); console.log\\(src.substring\\(idx, idx+1000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('export type NotificationRequestInput'\\); console.log\\(src.substring\\(idx, idx+500\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const m=src.match\\(/AndroidImportance[^}]+}/s\\); console.log\\(m?m[0]:''\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); console.log\\(src.length\\); const i=src.lastIndexOf\\('export'\\); console.log\\(src.substring\\(i-200,i+500\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/NotificationChannelManager.types.d.ts','utf8'\\); console.log\\(src.substring\\(0,3000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('NotificationRequestInput'\\); const snip=src.substring\\(idx, idx+300\\); console.log\\(snip\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('type NotificationRequestInput'\\); console.log\\(src.substring\\(idx, idx+600\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const m=[...src.matchAll\\(/NotificationRequestInput/g\\)]; m.forEach\\(x=>console.log\\(x.index, src.substring\\(x.index, x.index+200\\)\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('NotificationTriggerInput ='\\); console.log\\(src.substring\\(idx, idx+500\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-notifications/build/Notifications.types.d.ts','utf8'\\); const idx=src.indexOf\\('ChannelAwareTriggerInput'\\); console.log\\(src.substring\\(idx, idx+300\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-task-manager/build/index.d.ts','utf8'\\); console.log\\(src.substring\\(0,2000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); console.log\\(f.readdirSync\\('./node_modules/expo-task-manager/build'\\).slice\\(0,20\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-task-manager/build/TaskManager.d.ts','utf8'\\); console.log\\(src.substring\\(0,3000\\)\\)\")"
     ]
   }
 }

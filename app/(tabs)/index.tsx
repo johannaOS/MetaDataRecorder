@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  AppState,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,6 +22,12 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { extractOfAfter, extractOrigin, extractSongType } from '@/lib/autoFill';
 import { consumeAutoRecord } from '@/lib/autoRecord';
+import {
+  hideRecordingNotification,
+  showRecordingNotification,
+  STOP_ACTION,
+  updateRecordingNotification,
+} from '@/lib/backgroundRecording';
 import { insertRecording } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
@@ -68,6 +76,11 @@ export default function RecorderScreen() {
   const meterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+  // Tracks elapsed time for notification updates without stale-closure issues.
+  const elapsedRef = useRef(0);
+  // Always points to the latest handleStop closure so notification response
+  // listener can call it without capturing a stale version.
+  const handleStopRef = useRef<() => Promise<void>>(async () => {});
 
   // ── Inline metadata form state ────────────────────────────────────────────────
   const [isFormExpanded, setIsFormExpanded] = useState(false);
@@ -116,6 +129,38 @@ export default function RecorderScreen() {
     if (isFormExpanded) reloadFieldConfigs();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFormExpanded]);
+
+  // ── Keep handleStopRef pointing to the latest handleStop closure ──────────────
+  // handleStop captures state (elapsed, savedMeta, formValues) that changes each
+  // render. The notification response listener is set up once and must always
+  // call the freshest version to avoid using stale state.
+  useLayoutEffect(() => { handleStopRef.current = handleStop; });
+
+  // ── Sync elapsed from recording when app returns to foreground ────────────────
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (nextState !== 'active' || !recordingRef.current) return;
+      try {
+        const status = await recordingRef.current.getStatusAsync();
+        if (status.isLoaded && status.durationMillis != null) {
+          const actual = Math.round(status.durationMillis / 1000);
+          elapsedRef.current = actual;
+          setElapsed(actual);
+        }
+      } catch { /* recording may have been stopped concurrently */ }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // ── Handle Stop action from the recording notification ────────────────────────
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.actionIdentifier === STOP_ACTION && recordingRef.current) {
+        handleStopRef.current();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Button pulse ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -168,7 +213,13 @@ export default function RecorderScreen() {
   }, [formName]);
 
   // ── Timer & meter ─────────────────────────────────────────────────────────────
-  function startTimer() { timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000); }
+  function startTimer() {
+    timerRef.current = setInterval(() => {
+      elapsedRef.current += 1;
+      setElapsed(elapsedRef.current);
+      updateRecordingNotification(elapsedRef.current).catch(() => {});
+    }, 1000);
+  }
   function stopTimer() { clearInterval(timerRef.current!); timerRef.current = null; }
   function startMeterPolling() {
     meterRef.current = setInterval(async () => {
@@ -186,6 +237,7 @@ export default function RecorderScreen() {
 
   function resetRecorderState() {
     recordingRef.current = null;
+    elapsedRef.current = 0;
     setState('idle');
     setElapsed(0);
     setBars(Array(BAR_COUNT).fill(BAR_MIN));
@@ -195,13 +247,18 @@ export default function RecorderScreen() {
   async function startRecording() {
     const { granted } = await Audio.requestPermissionsAsync();
     if (!granted) { Alert.alert(S.permissionRequired, S.microphonePermissionMessage); return; }
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+    });
     try {
       const { recording } = await Audio.Recording.createAsync({
         ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
         isMeteringEnabled: true,
       });
       recordingRef.current = recording;
+      elapsedRef.current = 0;
       setBars(Array(BAR_COUNT).fill(BAR_MIN));
       setElapsed(0);
       setSavedMeta(null);
@@ -209,6 +266,7 @@ export default function RecorderScreen() {
       setState('recording');
       startTimer();
       startMeterPolling();
+      showRecordingNotification(0).catch(() => {});
     } catch (e) {
       console.error('[Recorder] startRecording error:', e);
       Alert.alert(S.error, S.couldNotStartRecording);
@@ -220,6 +278,7 @@ export default function RecorderScreen() {
     try {
       await recordingRef.current.pauseAsync();
       stopTimer(); stopMeterPolling(); setState('paused');
+      updateRecordingNotification(elapsedRef.current).catch(() => {});
     } catch (e) {
       console.error('[Recorder] pauseRecording error:', e);
       Alert.alert(S.error, S.couldNotPauseRecording);
@@ -231,6 +290,7 @@ export default function RecorderScreen() {
     try {
       await recordingRef.current.startAsync();
       setState('recording'); startTimer(); startMeterPolling();
+      showRecordingNotification(elapsedRef.current).catch(() => {});
     } catch (e) {
       console.error('[Recorder] resumeRecording error:', e);
       Alert.alert(S.error, S.couldNotResumeRecording);
@@ -243,7 +303,17 @@ export default function RecorderScreen() {
     setIsFormExpanded(false);
     stopTimer();
     stopMeterPolling();
-    const duration = elapsed;
+    hideRecordingNotification().catch(() => {});
+
+    // Prefer actual recording duration from expo-av over the JS timer counter,
+    // which may drift if the device suspended the JS thread while backgrounded.
+    let duration = elapsedRef.current;
+    try {
+      const status = await recordingRef.current.getStatusAsync();
+      if (status.isLoaded && status.durationMillis != null) {
+        duration = Math.round(status.durationMillis / 1000);
+      }
+    } catch { /* keep elapsedRef fallback */ }
 
     try {
       const cacheUri = recordingRef.current.getURI();

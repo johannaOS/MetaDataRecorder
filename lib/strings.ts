@@ -26,6 +26,7 @@ export const S = {
 
   // ── Screen 1: Recorder ──────────────────────────────────────────────────────
   appTitle: 'Röstinspelning',
+  recordingInProgress: 'Inspelning pågår',
   tapToRecord: 'Tryck för att spela in',
   tapToStop: 'Tryck ■ för att stoppa',
   paused: 'Pausad',
