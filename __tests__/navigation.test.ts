@@ -37,7 +37,23 @@ jest.mock('expo-router', () => ({
 
 // ── Stub out native modules that metadata.tsx imports ────────────────────────
 jest.mock('expo-sqlite');
-jest.mock('expo-av', () => ({ Audio: { setAudioModeAsync: jest.fn() } }));
+jest.mock('expo-audio', () => ({
+  setAudioModeAsync: jest.fn(),
+  requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  useAudioRecorder: jest.fn(() => ({
+    prepareToRecordAsync: jest.fn(),
+    record: jest.fn(),
+    stop: jest.fn().mockResolvedValue(undefined),
+    pause: jest.fn(),
+    isRecording: false,
+    currentTime: 0,
+    uri: null,
+    getStatus: jest.fn(() => ({ isRecording: false, metering: -160, durationMillis: 0 })),
+    id: 1,
+  })),
+  useAudioRecorderState: jest.fn(() => ({ isRecording: false, durationMillis: 0, metering: -160 })),
+  RecordingPresets: { HIGH_QUALITY: {} },
+}));
 jest.mock('expo-file-system', () => ({
   File: class { exists = false; delete() {} },
   Directory: class { create() {} list() { return []; } },

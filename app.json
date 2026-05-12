@@ -45,8 +45,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-task-manager",
-      "./plugins/withForegroundMicrophoneService",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow VoiceRecorder to record audio",
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": true
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -54,12 +60,6 @@
           "color": "#e53935",
           "defaultChannel": "recording-status",
           "sounds": []
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Allow Voice Recorder with Metadata to record audio."
         }
       ],
       [

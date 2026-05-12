@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -60,21 +60,25 @@ export default function DetailScreen() {
   const [editCustomValues, setEditCustomValues] = useState<Record<string, string>>({});
   const [fieldConfigs] = useFieldConfig();
 
-  // Player state
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
+  // Player — useAudioPlayer recreates when source changes (new recording loaded)
+  const player = useAudioPlayer(recording ? { uri: recording.filePath } : null);
+  const playerStatus = useAudioPlayerStatus(player);
+  const isPlaying = playerStatus.playing;
+  // During scrubbing use local state so the slider doesn't jump
+  const [seekPositionMs, setSeekPositionMs] = useState<number | null>(null);
+  const positionMs = seekPositionMs ?? Math.round(playerStatus.currentTime * 1000);
+  const durationMs = playerStatus.duration > 0
+    ? Math.round(playerStatus.duration * 1000)
+    : (recording?.duration ?? 0) * 1000;
   const isSeekingRef = useRef(false);
   const wasPlayingRef = useRef(false);
-  const hasFinishedRef = useRef(false);
+  const hasAutoPlayedRef = useRef(false);
 
   // Load recording on mount
   useEffect(() => {
     const r = getRecordingById(Number(id));
     setRecording(r);
     if (r) {
-      setDurationMs(r.duration * 1000);
       if (openEdit === '1') {
         setEditName(r.name);
         setEditOfAfter(r.ofAfter);
@@ -88,65 +92,42 @@ export default function DetailScreen() {
     }
   }, [id]);
 
-  // Load audio when recording is ready
+  // Reset autoplay flag when the player is recreated (new recording)
   useEffect(() => {
-    if (!recording) return;
-    let mounted = true;
+    hasAutoPlayedRef.current = false;
+    setSeekPositionMs(null);
+  }, [player.id]);
 
-    async function loadSound() {
+  // Auto-play or resume from handoff position once audio has loaded
+  useEffect(() => {
+    if (playerStatus.duration <= 0 || hasAutoPlayedRef.current) return;
+    hasAutoPlayedRef.current = true;
+    (async () => {
       try {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        const resumePositionMs = playFrom ? Number(playFrom) : 0;
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: recording!.filePath },
-          {
-            shouldPlay: autoPlay === '1' || !!playFrom,
-            positionMillis: resumePositionMs,
-          },
-          (status: AVPlaybackStatus) => {
-            if (!mounted || !status.isLoaded) return;
-            if (!isSeekingRef.current) setPositionMs(status.positionMillis ?? 0);
-            if (status.durationMillis) setDurationMs(status.durationMillis);
-            setIsPlaying(status.isPlaying);
-            if (status.didJustFinish) {
-              hasFinishedRef.current = true;
-              setIsPlaying(false);
-              setPositionMs(0);
-            }
-          }
-        );
-        if (!mounted) { sound.unloadAsync().catch(() => {}); return; }
-        soundRef.current = sound;
+        if (playFrom && Number(playFrom) > 0) {
+          await player.seekTo(Number(playFrom) / 1000);
+          player.play();
+        } else if (autoPlay === '1') {
+          player.play();
+        }
       } catch (e) {
-        console.error('[Detail] loadSound error:', e);
-        Alert.alert(S.playbackError, String(e));
+        console.error('[Detail] autoplay error:', e);
       }
-    }
-
-    loadSound();
-
-    return () => {
-      mounted = false;
-      soundRef.current?.unloadAsync().catch(e => console.log('[Detail] unload cleanup:', e));
-      soundRef.current = null;
-      setIsPlaying(false);
-      setPositionMs(0);
-    };
-  }, [recording?.id]);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerStatus.duration, player.id]);
 
   // ── Player controls ────────────────────────────────────────────────────────
 
   async function togglePlay() {
-    if (!soundRef.current) return;
     try {
       if (isPlaying) {
-        await soundRef.current.pauseAsync();
+        player.pause();
       } else {
-        if (hasFinishedRef.current || (durationMs > 0 && positionMs >= durationMs - 200)) {
-          hasFinishedRef.current = false;
-          await soundRef.current.setPositionAsync(0);
+        if (playerStatus.didJustFinish || (durationMs > 0 && positionMs >= durationMs - 200)) {
+          await player.seekTo(0);
         }
-        await soundRef.current.playAsync();
+        player.play();
       }
     } catch (e) {
       console.error('[Detail] togglePlay error:', e);
@@ -154,21 +135,22 @@ export default function DetailScreen() {
     }
   }
 
-  function onSeekStart() {
+  function onSeekStart(value: number) {
     isSeekingRef.current = true;
     wasPlayingRef.current = isPlaying;
-    soundRef.current?.pauseAsync().catch(e => console.log('[Detail] pause during seek:', e));
+    setSeekPositionMs(value);
+    player.pause();
   }
 
   async function onSeekComplete(value: number) {
     isSeekingRef.current = false;
-    setPositionMs(value);
     try {
-      await soundRef.current?.setPositionAsync(Math.round(value));
-      if (wasPlayingRef.current) await soundRef.current?.playAsync();
+      await player.seekTo(value / 1000);
+      if (wasPlayingRef.current) player.play();
     } catch (e) {
       console.error('[Detail] seek error:', e);
     }
+    setSeekPositionMs(null);
   }
 
   // ── Edit mode ──────────────────────────────────────────────────────────────

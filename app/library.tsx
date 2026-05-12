@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { type AudioPlayer, createAudioPlayer } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -53,7 +53,7 @@ export default function LibraryScreen() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [sheetItem, setSheetItem] = useState<Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
   const [showAddKeyword, setShowAddKeyword] = useState(false);
   const [newKeywordLabel, setNewKeywordLabel] = useState('');
 
@@ -105,26 +105,25 @@ export default function LibraryScreen() {
     useCallback(() => {
       reload(search, typeFilter);
       return () => {
-        soundRef.current?.unloadAsync().catch(e => console.log('[Library] unload on screen-leave error (likely already unloaded):', e));
-        soundRef.current = null;
+        playerRef.current?.remove();
+        playerRef.current = null;
         setPlayingId(null);
       };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
-  async function togglePlay(item: Recording) {
+  function togglePlay(item: Recording) {
     if (playingId === item.id) {
-      await soundRef.current?.stopAsync();
-      await soundRef.current?.unloadAsync();
-      soundRef.current = null;
+      playerRef.current?.pause();
+      playerRef.current?.remove();
+      playerRef.current = null;
       setPlayingId(null);
       return;
     }
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
+    if (playerRef.current) {
+      playerRef.current.remove();
+      playerRef.current = null;
     }
     try {
       const fileRef = new File(item.filePath);
@@ -134,20 +133,15 @@ export default function LibraryScreen() {
         return;
       }
 
-      // On iOS only: ensure audio plays through the speaker in silent mode.
-      // On Android this call triggers unnecessary audio manager operations.
-      if (Platform.OS === 'ios') {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      }
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: item.filePath },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
+      const player = createAudioPlayer({ uri: item.filePath });
+      player.play();
+      playerRef.current = player;
       setPlayingId(item.id);
-      sound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          soundRef.current = null;
+
+      player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish) {
+          playerRef.current?.remove();
+          playerRef.current = null;
           setPlayingId(null);
         }
       });
@@ -199,14 +193,11 @@ export default function LibraryScreen() {
           // If this item is currently playing, hand off the position to Screen 4.
           let playFrom = 0;
           const wasPlaying = playingId === item.id;
-          if (wasPlaying && soundRef.current) {
-            try {
-              const status = await soundRef.current.getStatusAsync();
-              if (status.isLoaded) playFrom = status.positionMillis ?? 0;
-            } catch { /* use 0 if unavailable */ }
-            await soundRef.current.stopAsync().catch(() => {});
-            await soundRef.current.unloadAsync().catch(() => {});
-            soundRef.current = null;
+          if (wasPlaying && playerRef.current) {
+            try { playFrom = Math.round(playerRef.current.currentTime * 1000); } catch { }
+            playerRef.current.pause();
+            playerRef.current.remove();
+            playerRef.current = null;
             setPlayingId(null);
           }
           router.push({
