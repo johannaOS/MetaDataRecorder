@@ -271,7 +271,7 @@ export default function MetadataScreen() {
         createdAt: new Date().toISOString(),
         customData: JSON.stringify(customValues),
       });
-      router.back(); // pop Screen 2 → Screen 1
+      router.replace('/library'); // save → Library (root screen, back exits)
     } catch (e) {
       console.error('[Metadata] handleSave error:', e);
       setSaving(false);
