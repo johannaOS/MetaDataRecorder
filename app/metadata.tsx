@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { setAudioModeAsync } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -205,7 +205,7 @@ export default function MetadataScreen() {
       await rec.stopAndUnloadAsync();
       if (!cacheUri) { Alert.alert(S.recordingError, S.recordingUriNull); return null; }
       if (Platform.OS === 'ios') {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       }
       return cacheUri;
     } catch (e) {
