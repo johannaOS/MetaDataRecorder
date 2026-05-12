@@ -46,6 +46,7 @@
     "plugins": [
       "expo-router",
       "expo-task-manager",
+      "./plugins/withForegroundMicrophoneService",
       [
         "expo-notifications",
         {

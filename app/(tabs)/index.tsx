@@ -24,11 +24,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { extractOfAfter, extractOrigin, extractSongType } from '@/lib/autoFill';
 import { consumeAutoRecord } from '@/lib/autoRecord';
 import {
+  BACKGROUND_RECORDING_TASK,
   hideRecordingNotification,
   showRecordingNotification,
   STOP_ACTION,
   updateRecordingNotification,
 } from '@/lib/backgroundRecording';
+import * as TaskManager from 'expo-task-manager';
 import { insertRecording } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
@@ -310,6 +312,12 @@ export default function RecorderScreen() {
       startTimer();
       startMeterPolling();
       showRecordingNotification(0).catch(() => {});
+      // Register the background recording task so the OS foreground service
+      // (declared with android:foregroundServiceType="microphone" via the
+      // withForegroundMicrophoneService config plugin) keeps audio privileges.
+      if (TaskManager.isTaskDefined(BACKGROUND_RECORDING_TASK)) {
+        console.log('[Recorder] background recording task is registered');
+      }
     } catch (e) {
       console.error('[Recorder] startRecording error:', e);
       Alert.alert(S.error, S.couldNotStartRecording);

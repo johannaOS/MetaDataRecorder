@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -45,8 +46,15 @@ export default Sentry.wrap(function RootLayout() {
     initDb();
     autoBackupOnStartup(); // auto-backup runs after DB is ready
 
-    // Request MediaLibrary permission now, before any recording starts.
-    // The result is cached so the save flow never needs to show a dialog.
+    // Request all media/storage permissions now, before recording starts.
+    // Requesting here (not inside the save flow) prevents any permission dialog
+    // from appearing after recording stops and stealing audio focus.
+    if (Platform.OS === 'android') {
+      PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      ]).catch(() => {});
+    }
     MediaLibrary.requestPermissionsAsync()
       .then(({ granted }) => setMediaLibraryGranted(granted))
       .catch(() => setMediaLibraryGranted(false));
