@@ -11,6 +11,7 @@ import { autoBackupOnStartup } from '@/lib/backup';
 // Importing this module registers the background task at startup (module-level side effect).
 import { initRecordingNotifications } from '@/lib/backgroundRecording';
 import { initDb } from '@/lib/db';
+import { setMediaLibraryGranted } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 import * as Sentry from '@sentry/react-native';
 
@@ -44,8 +45,12 @@ export default Sentry.wrap(function RootLayout() {
     initDb();
     autoBackupOnStartup(); // auto-backup runs after DB is ready
 
-    // Pre-request permissions at startup so they are never triggered mid-recording.
-    MediaLibrary.requestPermissionsAsync().catch(() => {});
+    // Request MediaLibrary permission now, before any recording starts.
+    // The result is cached so the save flow never needs to show a dialog.
+    MediaLibrary.requestPermissionsAsync()
+      .then(({ granted }) => setMediaLibraryGranted(granted))
+      .catch(() => setMediaLibraryGranted(false));
+
     Notifications.requestPermissionsAsync().catch(() => {});
     initRecordingNotifications().catch(() => {});
   }, []);

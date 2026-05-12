@@ -7,6 +7,16 @@ import { generateSafeFilename } from './filename';
 const FOLDER_NAME = 'VoiceRecorder';
 const ANDROID_MUSIC_PATH = 'file:///storage/emulated/0/Music/';
 
+// ── Permission cache ──────────────────────────────────────────────────────────
+// Set once at app startup by _layout.tsx after properly awaiting the system
+// dialog. Never call requestPermissionsAsync() inside the save flow — doing so
+// triggers the system dialog mid-recording which steals audio focus.
+let _mediaLibraryGranted = false;
+
+export function setMediaLibraryGranted(granted: boolean): void {
+  _mediaLibraryGranted = granted;
+}
+
 // ── Shared helper ─────────────────────────────────────────────────────────────
 
 /**
@@ -65,10 +75,9 @@ async function tryMediaLibrary(
   title: string,
 ): Promise<string | null> {
   try {
-    // Use getPermissionsAsync (no dialog) — permission must be pre-requested at startup.
-    // Calling requestPermissionsAsync here would cause a popup mid-save on Android.
-    const { granted } = await MediaLibrary.getPermissionsAsync();
-    if (!granted) return null;
+    // Use the cached startup permission — never call any permission API here.
+    // A dialog mid-save steals audio focus and silences the recording on Android.
+    if (!_mediaLibraryGranted) return null;
 
     const album = await MediaLibrary.getAlbumAsync(FOLDER_NAME);
     const existingNames: string[] = [];

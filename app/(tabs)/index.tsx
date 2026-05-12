@@ -158,6 +158,19 @@ export default function RecorderScreen() {
     const sub = AppState.addEventListener('change', async (nextState) => {
       if (nextState !== 'active' || !recordingRef.current) return;
       try {
+        // Re-request audio focus immediately on foreground resume.
+        // A permission dialog (or any other overlay) can cause AVManager to call
+        // abandonAudioFocus, silencing the recording. Re-applying the recording
+        // audio mode restores the focus before we check recording status.
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+          shouldDuckAndroid: false,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        });
+
         const status = await recordingRef.current.getStatusAsync();
         if (!status.isLoaded) return;
         // Sync elapsed from the real recording clock — the JS timer may have

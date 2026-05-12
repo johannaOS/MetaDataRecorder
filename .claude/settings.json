@@ -3,10 +3,9 @@
     "allow": [
       "Read",
       "Write",
-      "Edit"
-    ],
-    "ask": [
+      "Edit",
       "Bash"
-    ]
+    ],
+    "ask": []
   }
 }
