@@ -1,5 +1,4 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as MediaLibrary from 'expo-media-library';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,7 +10,6 @@ import { autoBackupOnStartup } from '@/lib/backup';
 // Importing this module registers the background task at startup (module-level side effect).
 import { initRecordingNotifications } from '@/lib/backgroundRecording';
 import { initDb } from '@/lib/db';
-import { setMediaLibraryGranted } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 import * as Sentry from '@sentry/react-native';
 
@@ -44,21 +42,6 @@ export default Sentry.wrap(function RootLayout() {
   useEffect(() => { (async () => {
     initDb();
     autoBackupOnStartup(); // auto-backup runs after DB is ready
-
-    // Request all required permissions before any recording starts.
-    // Each request is isolated in its own try-catch so one failure cannot
-    // block or deadlock any other. Do NOT fire two permission requests
-    // simultaneously — the Android permission system can deadlock if two
-    // dialogs are triggered at the same time.
-    console.log('[Layout] requesting MediaLibrary permission…');
-    try {
-      const { granted } = await MediaLibrary.requestPermissionsAsync();
-      console.log('[Layout] MediaLibrary permission result:', granted);
-      setMediaLibraryGranted(granted);
-    } catch (e) {
-      console.warn('[Layout] MediaLibrary.requestPermissionsAsync failed:', e);
-      setMediaLibraryGranted(false);
-    }
 
     console.log('[Layout] requesting Notifications permission…');
     try {

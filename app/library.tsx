@@ -105,8 +105,11 @@ export default function LibraryScreen() {
     useCallback(() => {
       reload(search, typeFilter);
       return () => {
-        playerRef.current?.remove();
-        playerRef.current = null;
+        if (playerRef.current) {
+          try { playerRef.current.pause(); } catch { /* already stopped */ }
+          playerRef.current.remove();
+          playerRef.current = null;
+        }
         setPlayingId(null);
       };
     // eslint-disable-next-line react-hooks/exhaustive-deps
