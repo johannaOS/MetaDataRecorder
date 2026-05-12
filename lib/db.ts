@@ -155,6 +155,10 @@ export function deleteRecording(id: number) {
   db.runSync('DELETE FROM recordings WHERE id = ?', id);
 }
 
+export function deleteAllRecordings() {
+  db.runSync('DELETE FROM recordings');
+}
+
 export function getUniqueSongTypes(): string[] {
   const rows = db.getAllSync(
     "SELECT DISTINCT songType FROM recordings WHERE songType != '' ORDER BY songType"

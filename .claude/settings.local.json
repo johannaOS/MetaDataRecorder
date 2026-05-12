@@ -29,7 +29,16 @@
       "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-av/build/Audio/AudioMode.d.ts','utf8'\\); console.log\\(src.substring\\(0,2000\\)\\)\")",
       "Bash(node -e \"const f=require\\('fs'\\); const files=f.readdirSync\\('./node_modules/expo-av/build'\\); console.log\\(files\\)\")",
       "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-av/build/Audio.types.d.ts','utf8'\\); const idx=src.indexOf\\('InterruptionMode'\\); console.log\\(src.substring\\(idx, idx+500\\)\\)\")",
-      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-av/build/Audio.types.d.ts','utf8'\\); const m=src.match\\(/export declare enum InterruptionMode[^}]+}/g\\); console.log\\(m\\)\")"
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-av/build/Audio.types.d.ts','utf8'\\); const m=src.match\\(/export declare enum InterruptionMode[^}]+}/g\\); console.log\\(m\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/next/index.d.ts','utf8'\\); console.log\\(src.substring\\(0,4000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const files=f.readdirSync\\('./node_modules/expo-file-system/build'\\); console.log\\(files.join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/FileSystem.d.ts','utf8'\\); const idx=src.indexOf\\('class File'\\); console.log\\(src.substring\\(idx, idx+2000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.d.ts','utf8'\\); const idx=src.indexOf\\('FileSystemFile'\\); console.log\\(src.substring\\(idx, idx+2000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); console.log\\(src.substring\\(0,5000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const idx=src.indexOf\\('class File'\\); console.log\\(src.substring\\(idx, idx+3000\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const idx=src.indexOf\\('FileInfo'\\); console.log\\(src.substring\\(idx, idx+500\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const m=src.match\\(/type FileInfo[^;]+;/gs\\); console.log\\(m?.[0]?.substring\\(0,500\\)\\)\")",
+      "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const idx=src.indexOf\\('type FileInfo'\\); console.log\\(src.substring\\(idx, idx+600\\)\\)\")"
     ]
   }
 }

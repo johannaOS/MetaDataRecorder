@@ -67,6 +67,20 @@ export const S = {
   deleteRecording: 'Radera inspelning?',
   deleteRecordingMessage: 'Ljudfilen och all metadata raderas permanent.',
 
+  // ── Settings / backup ────────────────────────────────────────────────────────
+  settingsTitle: 'Inställningar',
+  backupAndRestore: 'Säkerhetskopiering och återställning',
+  mostRecentBackup: 'Senaste säkerhetskopia',
+  noBackup: 'Ingen säkerhetskopia ännu',
+  backupNow: 'Säkerhetskopiera nu',
+  backupSuccess: 'Säkerhetskopia sparad',
+  restoreFromBackup: 'Återställ från säkerhetskopia',
+  confirmRestore: 'Bekräfta återställning',
+  restoreConfirmMessage: 'Vill du återställa från denna säkerhetskopia? All nuvarande inspelningsdata kommer att skrivas över permanent.',
+  restoreWarning: 'Varning: Återställning skriver över all nuvarande inspelningsdata. Åtgärden kan inte ångras.',
+  audioFilesNote: 'Obs: Ljudfiler lagras separat och påverkas inte av säkerhetskopiering eller återställning.',
+  restoreSuccess: 'Återställningen slutförd',
+
   // ── Alerts ──────────────────────────────────────────────────────────────────
   permissionRequired: 'Behörighet krävs',
   microphonePermissionMessage: 'Mikrofonåtkomst krävs för att spela in ljud.',

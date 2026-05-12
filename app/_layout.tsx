@@ -7,9 +7,10 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { initDb } from '@/lib/db';
+import { autoBackupOnStartup } from '@/lib/backup';
 // Importing this module registers the background task at startup (module-level side effect).
 import { initRecordingNotifications } from '@/lib/backgroundRecording';
+import { initDb } from '@/lib/db';
 import { S } from '@/lib/strings';
 
 export const unstable_settings = {
@@ -21,6 +22,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDb();
+    autoBackupOnStartup(); // auto-backup runs after DB is ready
 
     // Pre-request permissions at startup so they are never triggered mid-recording.
     MediaLibrary.requestPermissionsAsync().catch(() => {});
@@ -36,6 +38,7 @@ export default function RootLayout() {
         <Stack.Screen name="library" options={{ title: S.library }} />
         <Stack.Screen name="detail/[id]" options={{ title: S.recordingScreenTitle }} />
         <Stack.Screen name="fields" options={{ title: S.manageFields }} />
+        <Stack.Screen name="settings" options={{ title: S.settingsTitle }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

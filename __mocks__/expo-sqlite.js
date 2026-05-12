@@ -183,8 +183,11 @@ function createDb() {
         return { changes: 1 };
       }
 
-      // DELETE FROM table WHERE ...
+      // DELETE FROM table [WHERE ...]
       if (/^DELETE/i.test(s)) {
+        // No WHERE clause → delete all rows in table
+        const mAll = s.match(/^DELETE FROM\s+(\w+)\s*$/i);
+        if (mAll) { tables[mAll[1]] = []; return { changes: 1 }; }
         const m = s.match(/FROM\s+(\w+)\s+WHERE\s+(.+)/i);
         if (!m) return { changes: 0 };
         const [, table, whereStr] = m;

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { File } from 'expo-file-system';
-import { router, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -226,6 +226,14 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Stack.Screen options={{
+        headerRight: () => (
+          <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
+            <Ionicons name="settings-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
+        ),
+      }} />
+
       {/* Search bar */}
       <View style={[styles.searchBar, { backgroundColor: colors.icon + '22' }]}>
         <Ionicons name="search" size={15} color={colors.icon} />
