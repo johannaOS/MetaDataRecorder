@@ -243,7 +243,7 @@ export default function DetailScreen() {
               Alert.alert(S.error, S.couldNotDelete);
               return;
             }
-            router.replace('/library');
+            router.back(); // pop Screen 4 → Screen 3
           },
         },
       ]

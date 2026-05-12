@@ -30,6 +30,11 @@ import { extractOfAfter, extractOrigin, extractSongType } from '@/lib/autoFill';
 
 const SAVE_COLOR = '#00A878';
 
+// True when `uri` is still in the Expo audio cache (not yet copied to permanent storage).
+function isCachedPath(uri: string): boolean {
+  return /\/cache[s\/]/i.test(uri) || uri.includes('/tmp/');
+}
+
 function formatTime(s: number) {
   return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 }
@@ -188,8 +193,8 @@ export default function MetadataScreen() {
     ofAfterRef.current?.focus();
   }
 
-  // Stops the live recording, resets audio mode, copies to permanent storage.
-  // Returns the permanent URI, or null on failure.
+  // Stops the live recording and returns the cache URI.
+  // The caller is responsible for copying to permanent storage with the correct title.
   async function stopLiveRecording(): Promise<string | null> {
     if (liveTimerRef.current) { clearInterval(liveTimerRef.current); liveTimerRef.current = null; }
     const rec = getActiveRecording();
@@ -198,12 +203,11 @@ export default function MetadataScreen() {
     try {
       const cacheUri = rec.getURI();
       await rec.stopAndUnloadAsync();
-      console.log('[Metadata] live recording stopped — cache URI:', cacheUri);
       if (!cacheUri) { Alert.alert(S.recordingError, S.recordingUriNull); return null; }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const finalUri = await copyToPermanentStorage(cacheUri);
-      console.log('[Metadata] permanent path:', finalUri);
-      return finalUri;
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      }
+      return cacheUri;
     } catch (e) {
       console.error('[Metadata] stopLiveRecording error:', e);
       Alert.alert(S.error, S.couldNotStopRecording);
@@ -213,11 +217,12 @@ export default function MetadataScreen() {
 
   // ── Actions ───────────────────────────────────────────────────────────────────
 
-  // Stop button: stops the recording but stays on the form so the user can review/edit.
+  // Stop button: stops the live recording and stays on the form for title entry.
+  // Keeps the cache URI in resolvedFilePath — handleSave will copy to permanent.
   async function handleStopRecording() {
-    const uri = await stopLiveRecording();
-    if (uri) {
-      setResolvedFilePath(uri);
+    const cacheUri = await stopLiveRecording();
+    if (cacheUri) {
+      setResolvedFilePath(cacheUri);
       setResolvedDuration(liveElapsed);
       setIsLive(false);
     }
@@ -231,11 +236,26 @@ export default function MetadataScreen() {
     let duration = resolvedDuration;
 
     if (isLive) {
-      const uri = await stopLiveRecording();
-      if (!uri) { setSaving(false); return; }
-      filePath = uri;
+      const cacheUri = await stopLiveRecording();
+      if (!cacheUri) { setSaving(false); return; }
+      filePath = cacheUri;
       duration = liveElapsed;
       setIsLive(false);
+    }
+
+    // Copy from cache to permanent storage with the correct title if not already saved.
+    // This covers: (a) normal Screen 2 flow where handleStop passed the cache URI,
+    // (b) live recording stopped via handleStopRecording before pressing Save,
+    // (c) live recording stopped inline inside this handleSave.
+    if (isCachedPath(filePath)) {
+      try {
+        filePath = await copyToPermanentStorage(filePath, name.trim() || S.untitled);
+      } catch (e) {
+        console.error('[Metadata] copyToPermanentStorage error:', e);
+        Alert.alert(S.error, S.couldNotSaveRecording);
+        setSaving(false);
+        return;
+      }
     }
 
     try {
@@ -251,7 +271,7 @@ export default function MetadataScreen() {
         createdAt: new Date().toISOString(),
         customData: JSON.stringify(customValues),
       });
-      router.replace('/library');
+      router.back(); // pop Screen 2 → Screen 1
     } catch (e) {
       console.error('[Metadata] handleSave error:', e);
       setSaving(false);
@@ -275,7 +295,7 @@ export default function MetadataScreen() {
           if (fileToDelete) {
             try { new File(fileToDelete).delete(); } catch (e) { console.warn('[Metadata] discard delete error:', e); }
           }
-          router.replace('/');
+          router.back(); // pop Screen 2 → Screen 1
         },
       },
     ]);

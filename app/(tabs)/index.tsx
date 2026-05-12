@@ -376,13 +376,12 @@ export default function RecorderScreen() {
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       }
-      const finalUri = await copyToPermanentStorage(cacheUri);
-      console.log('[Recorder] permanent path saved to DB:', finalUri);
-
       resetRecorderState();
 
       if (savedMeta !== null) {
-        // Metadata pre-filled via inline form → save directly and go to Library
+        // Metadata pre-filled via inline form → title is known, copy with correct filename.
+        const finalUri = await copyToPermanentStorage(cacheUri, savedMeta.name || S.untitled);
+        console.log('[Recorder] permanent path saved to DB:', finalUri);
         insertRecording({
           name: savedMeta.name || S.untitled,
           ofAfter: savedMeta.ofAfter, origin: savedMeta.origin,
@@ -393,12 +392,12 @@ export default function RecorderScreen() {
         setSavedMeta(null);
         router.replace('/library');
       } else {
-        // No pre-saved metadata → navigate to Screen 2, passing any form data the user typed
-        // so nothing is lost even if Save was never pressed.
+        // No pre-saved metadata → pass the cache URI to Screen 2.
+        // Screen 2 will copy it to permanent storage once the user enters a title.
         router.push({
           pathname: '/metadata',
           params: {
-            filePath: finalUri,
+            filePath: cacheUri,
             duration: String(duration),
             preFilledName: formName.trim(),
             preFilledOfAfter: formOfAfter.trim(),
