@@ -4,15 +4,37 @@ import * as MediaLibrary from 'expo-media-library';
 
 import { generateSafeFilename } from './filename';
 
-// Folder name used in every storage tier.
-// Appears as Music/VoiceRecorder in the Android file manager.
 const FOLDER_NAME = 'VoiceRecorder';
-
-// Standard Android primary-user external storage path.
-// Works on Android 9 and, with requestLegacyExternalStorage in AndroidManifest,
-// on Android 10 (API 29) as well. On Android 11+ (API 30+) scoped-storage
-// restrictions block this path; the MediaLibrary tier below handles that case.
 const ANDROID_MUSIC_PATH = 'file:///storage/emulated/0/Music/';
+
+// ── Shared helper ─────────────────────────────────────────────────────────────
+
+/**
+ * Lists existing filenames in a directory and generates a unique destination File.
+ * Falls back to an existence check loop if list() is unavailable, ensuring
+ * conflict resolution never throws "file already exists" errors.
+ */
+function resolveUniqueFile(dir: Directory, title: string): [File, string] {
+  let existingNames: string[] = [];
+  try {
+    existingNames = dir
+      .list()
+      .filter(item => !item.isDirectory)
+      .map(item => item.uri.split('/').pop() ?? '');
+  } catch { /* directory empty or unreadable — generateSafeFilename handles via existence loop */ }
+
+  let filename = generateSafeFilename(title, existingNames);
+  let destFile = new File(dir, filename);
+
+  // Existence loop: guards against race conditions or list() misses.
+  while (destFile.exists) {
+    existingNames.push(filename);
+    filename = generateSafeFilename(title, existingNames);
+    destFile = new File(dir, filename);
+  }
+
+  return [destFile, filename];
+}
 
 // ── Tier 1: direct filesystem write (Android 9 / 10 legacy mode) ──────────────
 
@@ -25,37 +47,29 @@ async function tryDirectAndroidWrite(
     const vrDir = new Directory(ANDROID_MUSIC_PATH + FOLDER_NAME + '/');
     vrDir.create({ intermediates: true, idempotent: true });
 
-    let existingNames: string[] = [];
-    try {
-      existingNames = vrDir
-        .list()
-        .filter(item => !item.isDirectory)
-        .map(item => item.uri.split('/').pop() ?? '');
-    } catch { /* empty or unreadable — start fresh */ }
-
-    const filename = generateSafeFilename(title, existingNames);
-    const destFile = new File(vrDir, filename);
+    const [destFile, filename] = resolveUniqueFile(vrDir, title);
     new File(cacheUri).copy(destFile);
 
     console.log(`[Save] direct write → Music/${FOLDER_NAME}/${filename}`);
     return destFile.uri;
   } catch (e) {
-    console.log('[Save] direct write failed (Android 11+ scoped-storage), trying MediaLibrary:', e);
+    console.log('[Save] direct write failed (likely Android 11+ scoped storage):', e);
     return null;
   }
 }
 
-// ── Tier 2: MediaLibrary / MediaStore (Android 10+ and iOS) ──────────────────
+// ── Tier 2: MediaLibrary / MediaStore (Android 10+, iOS) ─────────────────────
 
 async function tryMediaLibrary(
   cacheUri: string,
   title: string,
 ): Promise<string | null> {
   try {
-    const { granted } = await MediaLibrary.requestPermissionsAsync();
+    // Use getPermissionsAsync (no dialog) — permission must be pre-requested at startup.
+    // Calling requestPermissionsAsync here would cause a popup mid-save on Android.
+    const { granted } = await MediaLibrary.getPermissionsAsync();
     if (!granted) return null;
 
-    // Collect existing filenames in the album for conflict resolution.
     const album = await MediaLibrary.getAlbumAsync(FOLDER_NAME);
     const existingNames: string[] = [];
     if (album) {
@@ -69,7 +83,6 @@ async function tryMediaLibrary(
 
     const filename = generateSafeFilename(title, existingNames);
 
-    // Write a temp file with the correct name so MediaLibrary preserves it.
     const tempFile = new File(new Directory(Paths.cache), filename);
     new File(cacheUri).copy(tempFile);
 
@@ -81,11 +94,8 @@ async function tryMediaLibrary(
     }
 
     if (!album) {
-      // createAlbumAsync with copyAsset=false physically moves the file into
-      // Music/VoiceRecorder/ on Android 10+ via MediaStore RELATIVE_PATH.
       await MediaLibrary.createAlbumAsync(FOLDER_NAME, asset, false);
     } else {
-      // Move asset into the existing album subfolder.
       await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
     }
 
@@ -106,16 +116,7 @@ function writeToDocuments(cacheUri: string, title: string): string {
   );
   vrDir.create({ intermediates: true, idempotent: true });
 
-  let existingNames: string[] = [];
-  try {
-    existingNames = vrDir
-      .list()
-      .filter(item => !item.isDirectory)
-      .map(item => item.uri.split('/').pop() ?? '');
-  } catch { /* empty directory */ }
-
-  const filename = generateSafeFilename(title, existingNames);
-  const destFile = new File(vrDir, filename);
+  const [destFile, filename] = resolveUniqueFile(vrDir, title);
   new File(cacheUri).copy(destFile);
 
   console.log(`[Save] documents fallback → ${FOLDER_NAME}/${filename}`);
@@ -127,13 +128,13 @@ function writeToDocuments(cacheUri: string, title: string): string {
 /**
  * Copies a cache-directory recording to permanent storage and returns its URI.
  *
- * Tries three storage tiers in order:
+ * Tries three storage tiers:
  *  1. Direct write to /storage/emulated/0/Music/VoiceRecorder/ (Android 9–10)
  *  2. expo-media-library / MediaStore (Android 10+, iOS)
  *  3. App private documents directory (guaranteed fallback)
  *
- * The file is named from `title` with conflict resolution (1), (2), …
- * Requires a new native build for `requestLegacyExternalStorage` to take effect.
+ * Conflict resolution is always applied — duplicate titles get (1), (2), … suffixes.
+ * Requires a new native build for requestLegacyExternalStorage to take effect.
  */
 export async function copyToPermanentStorage(
   cacheUri: string,

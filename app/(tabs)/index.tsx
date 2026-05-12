@@ -380,7 +380,14 @@ export default function RecorderScreen() {
 
       if (savedMeta !== null) {
         // Metadata pre-filled via inline form → title is known, copy with correct filename.
-        const finalUri = await copyToPermanentStorage(cacheUri, savedMeta.name || S.untitled);
+        let finalUri: string;
+        try {
+          finalUri = await copyToPermanentStorage(cacheUri, savedMeta.name || S.untitled);
+        } catch (saveErr) {
+          console.error('[Recorder] copyToPermanentStorage error:', saveErr);
+          Alert.alert(S.error, `${S.couldNotSaveRecording}\n\n${String(saveErr)}`);
+          return;
+        }
         console.log('[Recorder] permanent path saved to DB:', finalUri);
         insertRecording({
           name: savedMeta.name || S.untitled,

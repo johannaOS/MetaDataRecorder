@@ -7,6 +7,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -133,7 +134,11 @@ export default function LibraryScreen() {
         return;
       }
 
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      // On iOS only: ensure audio plays through the speaker in silent mode.
+      // On Android this call triggers unnecessary audio manager operations.
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      }
       const { sound } = await Audio.Sound.createAsync(
         { uri: item.filePath },
         { shouldPlay: true }
@@ -190,9 +195,28 @@ export default function LibraryScreen() {
     return (
       <TouchableOpacity
         style={[styles.row, { borderBottomColor: colors.icon + '33' }]}
-        onPress={() =>
-          router.push({ pathname: '/detail/[id]', params: { id: String(item.id) } })
-        }
+        onPress={async () => {
+          // If this item is currently playing, hand off the position to Screen 4.
+          let playFrom = 0;
+          const wasPlaying = playingId === item.id;
+          if (wasPlaying && soundRef.current) {
+            try {
+              const status = await soundRef.current.getStatusAsync();
+              if (status.isLoaded) playFrom = status.positionMillis ?? 0;
+            } catch { /* use 0 if unavailable */ }
+            await soundRef.current.stopAsync().catch(() => {});
+            await soundRef.current.unloadAsync().catch(() => {});
+            soundRef.current = null;
+            setPlayingId(null);
+          }
+          router.push({
+            pathname: '/detail/[id]',
+            params: {
+              id: String(item.id),
+              ...(wasPlaying ? { playFrom: String(playFrom) } : {}),
+            },
+          });
+        }}
         onLongPress={() => setSheetItem(item)}
         delayLongPress={400}
         activeOpacity={0.6}

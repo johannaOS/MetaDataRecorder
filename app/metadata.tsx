@@ -252,7 +252,7 @@ export default function MetadataScreen() {
         filePath = await copyToPermanentStorage(filePath, name.trim() || S.untitled);
       } catch (e) {
         console.error('[Metadata] copyToPermanentStorage error:', e);
-        Alert.alert(S.error, S.couldNotSaveRecording);
+        Alert.alert(S.error, `${S.couldNotSaveRecording}\n\n${String(e)}`);
         setSaving(false);
         return;
       }

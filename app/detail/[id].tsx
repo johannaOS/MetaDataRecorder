@@ -40,7 +40,9 @@ function formatDate(iso: string): string {
 }
 
 export default function DetailScreen() {
-  const { id, autoPlay, openEdit } = useLocalSearchParams<{ id: string; autoPlay?: string; openEdit?: string }>();
+  const { id, autoPlay, openEdit, playFrom } = useLocalSearchParams<{
+    id: string; autoPlay?: string; openEdit?: string; playFrom?: string;
+  }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
@@ -94,9 +96,13 @@ export default function DetailScreen() {
     async function loadSound() {
       try {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+        const resumePositionMs = playFrom ? Number(playFrom) : 0;
         const { sound } = await Audio.Sound.createAsync(
           { uri: recording!.filePath },
-          { shouldPlay: autoPlay === '1' },
+          {
+            shouldPlay: autoPlay === '1' || !!playFrom,
+            positionMillis: resumePositionMs,
+          },
           (status: AVPlaybackStatus) => {
             if (!mounted || !status.isLoaded) return;
             if (!isSeekingRef.current) setPositionMs(status.positionMillis ?? 0);
