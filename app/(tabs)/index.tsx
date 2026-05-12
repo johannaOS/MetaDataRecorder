@@ -697,6 +697,7 @@ export default function RecorderScreen() {
           <Text style={[styles.libraryButtonText, { color: colors.text }]}>{S.library}</Text>
         </TouchableOpacity>
       )}
+
     </View>
   );
 }
@@ -833,4 +834,5 @@ const styles = StyleSheet.create({
     borderRadius: 24, borderWidth: 1.5,
   },
   libraryButtonText: { fontSize: 16, fontWeight: '500' },
+
 });

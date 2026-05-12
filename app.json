@@ -11,7 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -78,6 +80,14 @@
           "photosPermission": "Allow Voice Recorder with Metadata to save recordings to your Music library.",
           "savePhotosPermission": "Allow Voice Recorder with Metadata to save recordings to your Music library.",
           "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "voicerecorder",
+          "organization": "johannaos"
         }
       ]
     ],
