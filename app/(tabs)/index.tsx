@@ -183,19 +183,16 @@ export default function RecorderScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', async (nextState) => {
       if (nextState !== 'active' || !recorder.isRecording) return;
-      // On iOS: re-apply the recording audio mode to reclaim focus if it was lost.
-      // expo-audio handles Android audio focus automatically via the native module.
-      if (Platform.OS === 'ios') {
-        try {
-          await setAudioModeAsync({
-            allowsRecording: true,
-            playsInSilentMode: true,
-            shouldPlayInBackground: true,
-            allowsBackgroundRecording: true,
-            interruptionMode: 'doNotMix',
-          });
-        } catch { /* ignore */ }
-      }
+      // Re-apply recording audio mode to reclaim focus if it was lost.
+      // interruptionMode 'doNotMix' is iOS-only — causes a cast error on Android.
+      try {
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+          allowsBackgroundRecording: true,
+          ...(Platform.OS === 'ios' ? { interruptionMode: 'doNotMix' as const } : {}),
+        });
+      } catch { /* ignore */ }
       // recorderState updates automatically; no manual elapsed sync needed.
     });
     return () => sub.remove();
@@ -262,16 +259,15 @@ export default function RecorderScreen() {
   async function startRecording() {
     const { granted } = await requestRecordingPermissionsAsync();
     if (!granted) { Alert.alert(S.permissionRequired, S.microphonePermissionMessage); return; }
-    // On iOS: configure audio session for recording. expo-audio handles Android automatically.
-    if (Platform.OS === 'ios') {
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-        shouldPlayInBackground: true,
-        allowsBackgroundRecording: true,
-        interruptionMode: 'doNotMix',
-      });
-    }
+    // setAudioModeAsync must be called at runtime on both platforms before recording
+    // to activate background recording — the config plugin alone is not sufficient.
+    // interruptionMode 'doNotMix' is iOS-only; it causes a cast error on Android.
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
+      allowsBackgroundRecording: true,
+      ...(Platform.OS === 'ios' ? { interruptionMode: 'doNotMix' as const } : {}),
+    });
     try {
       await recorder.prepareToRecordAsync();
       recorder.record();
