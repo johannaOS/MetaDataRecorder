@@ -193,7 +193,11 @@ export default function RecorderScreen() {
           ...(Platform.OS === 'ios' ? { interruptionMode: 'doNotMix' as const } : {}),
         });
       } catch { /* ignore */ }
-      // recorderState updates automatically; no manual elapsed sync needed.
+      // recorderState.durationMillis updates automatically via useAudioRecorderState;
+      // elapsed is derived from it reactively so the timer display catches up on the
+      // next render without any manual sync.
+      console.log('[Recorder] foregrounded — recorder.isRecording:', recorder.isRecording,
+        'state:', state, 'recorderState.durationMillis:', recorderState.durationMillis);
     });
     return () => sub.remove();
   }, []);
@@ -262,15 +266,20 @@ export default function RecorderScreen() {
     // setAudioModeAsync must be called at runtime on both platforms before recording
     // to activate background recording — the config plugin alone is not sufficient.
     // interruptionMode 'doNotMix' is iOS-only; it causes a cast error on Android.
+    console.log('[Recorder] setting audio mode — platform:', Platform.OS);
     await setAudioModeAsync({
       allowsRecording: true,
       playsInSilentMode: true,
       allowsBackgroundRecording: true,
       ...(Platform.OS === 'ios' ? { interruptionMode: 'doNotMix' as const } : {}),
     });
+    console.log('[Recorder] audio mode set');
     try {
+      console.log('[Recorder] preparing recorder…');
       await recorder.prepareToRecordAsync();
+      console.log('[Recorder] starting record()');
       recorder.record();
+      console.log('[Recorder] recording started');
       setBars(Array(BAR_COUNT).fill(BAR_MIN));
       setSavedMeta(null);
       setIsFormExpanded(false);
@@ -322,8 +331,13 @@ export default function RecorderScreen() {
     setIsFormExpanded(false);
     hideRecordingNotification().catch(() => {});
 
-    // Duration from the reactive recorder state — in seconds, rounded.
-    const duration = elapsed;
+    // Capture duration from the native recorder state BEFORE stopping.
+    // recorderState.durationMillis is in milliseconds; divide by 1000 for seconds.
+    // This is more accurate than `elapsed` (which rounds) and avoids any reset-to-zero
+    // that might occur after recorder.stop() resolves.
+    const durationMs = recorderState.durationMillis ?? (elapsed * 1000);
+    const duration = Math.round(durationMs / 1000);
+    console.log('[Recorder] stopping — durationMs:', durationMs, 'duration:', duration, 's');
 
     try {
       await recorder.stop();
