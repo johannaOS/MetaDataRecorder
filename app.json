@@ -45,6 +45,14 @@
     },
     "plugins": [
       "expo-router",
+      "expo-task-manager",
+      "./plugins/withForegroundMicrophoneService",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Voice Recorder with Metadata to record audio."
+        }
+      ],
       [
         "expo-audio",
         {

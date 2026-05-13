@@ -1,7 +1,18 @@
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
 import { S } from './strings';
+
+// ── Background task ───────────────────────────────────────────────────────────
+// Defined at module level so it is registered before any navigation renders.
+// expo-av manages the audio session; registering this task keeps the Android
+// foreground service alive and prevents the OS from revoking audio focus.
+export const BACKGROUND_RECORDING_TASK = 'BACKGROUND_RECORDING_TASK';
+
+TaskManager.defineTask(BACKGROUND_RECORDING_TASK, () => {
+  // Intentionally empty — audio continuity is handled by expo-av.
+});
 
 // ── Foreground notification handler ───────────────────────────────────────────
 Notifications.setNotificationHandler({

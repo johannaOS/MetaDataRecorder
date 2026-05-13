@@ -37,6 +37,22 @@ jest.mock('expo-router', () => ({
 
 // ── Stub out native modules that metadata.tsx imports ────────────────────────
 jest.mock('expo-sqlite');
+jest.mock('expo-av', () => ({
+  Audio: {
+    setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+    Recording: {
+      createAsync: jest.fn().mockResolvedValue({ recording: { getURI: () => null, stopAndUnloadAsync: jest.fn(), pauseAsync: jest.fn(), startAsync: jest.fn(), getStatusAsync: jest.fn(() => ({ isRecording: false, metering: -160 })) } }),
+    },
+    RecordingOptionsPresets: { HIGH_QUALITY: {} },
+  },
+  InterruptionModeAndroid: { DoNotMix: 1 },
+  InterruptionModeIOS: { DoNotMix: 0 },
+}));
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskDefined: jest.fn().mockReturnValue(true),
+}));
 jest.mock('expo-audio', () => ({
   setAudioModeAsync: jest.fn(),
   requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
