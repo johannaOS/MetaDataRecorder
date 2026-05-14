@@ -37,6 +37,18 @@ jest.mock('expo-router', () => ({
 
 // ── Stub out native modules that metadata.tsx imports ────────────────────────
 jest.mock('expo-sqlite');
+jest.mock('@notifee/react-native', () => ({
+  default: {
+    registerForegroundService: jest.fn(),
+    createChannel: jest.fn().mockResolvedValue(undefined),
+    displayNotification: jest.fn().mockResolvedValue(undefined),
+    stopForegroundService: jest.fn().mockResolvedValue(undefined),
+    cancelNotification: jest.fn().mockResolvedValue(undefined),
+    onForegroundEvent: jest.fn().mockReturnValue(jest.fn()),
+  },
+  AndroidImportance: { LOW: 2, DEFAULT: 3 },
+  EventType: { ACTION_PRESS: 2, PRESS: 1, DISMISSED: 0 },
+}));
 jest.mock('expo-av', () => ({
   Audio: {
     setAudioModeAsync: jest.fn().mockResolvedValue(undefined),

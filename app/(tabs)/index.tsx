@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
-import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
@@ -26,8 +25,8 @@ import { consumeAutoRecord } from '@/lib/autoRecord';
 import {
   BACKGROUND_RECORDING_TASK,
   hideRecordingNotification,
+  onRecordingNotificationStop,
   showRecordingNotification,
-  STOP_ACTION,
   updateRecordingNotification,
 } from '@/lib/backgroundRecording';
 import * as TaskManager from 'expo-task-manager';
@@ -161,19 +160,11 @@ export default function RecorderScreen() {
 
   // ── Sync elapsed from wall clock when app returns to foreground ──────────────
   useEffect(() => {
-    const sub = AppState.addEventListener('change', async (nextState) => {
+    const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState !== 'active' || !recordingRef.current) return;
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          shouldDuckAndroid: false,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-        });
-      } catch { /* ignore */ }
       // Wall-clock elapsed is always accurate — recompute and restart timer if needed.
+      // Do NOT call Audio.setAudioModeAsync here: it resets the audio session and
+      // kills the active MediaRecorder on Android after a full app-switch (onStop cycle).
       const actualMs = Date.now() - recordingStartMsRef.current - pausedAccumulatedMsRef.current;
       const actual = Math.floor(actualMs / 1000);
       elapsedRef.current = actual;
@@ -186,12 +177,9 @@ export default function RecorderScreen() {
 
   // ── Handle Stop action from the recording notification ────────────────────────
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      if (response.actionIdentifier === STOP_ACTION && recordingRef.current) {
-        handleStopRef.current();
-      }
+    return onRecordingNotificationStop(() => {
+      if (recordingRef.current) handleStopRef.current();
     });
-    return () => sub.remove();
   }, []);
 
   // ── Button pulse ──────────────────────────────────────────────────────────────
