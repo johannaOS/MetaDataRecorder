@@ -37,6 +37,9 @@ jest.mock('expo-router', () => ({
 
 // ── Stub out native modules that metadata.tsx imports ────────────────────────
 jest.mock('expo-sqlite');
+jest.mock('save-to-music', () => ({
+  saveAudioFile: jest.fn().mockResolvedValue('content://media/audio/1234'),
+}));
 jest.mock('@notifee/react-native', () => ({
   default: {
     registerForegroundService: jest.fn(),

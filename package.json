@@ -1,5 +1,6 @@
 {
   "name": "voicerecorder",
+  "workspaces": ["modules/*"],
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -20,6 +21,7 @@
     "testEnvironment": "node"
   },
   "dependencies": {
+    "save-to-music": "file:./modules/save-to-music",
     "@expo/vector-icons": "^15.0.3",
     "@notifee/react-native": "^9.1.8",
     "@react-native-community/slider": "5.0.1",

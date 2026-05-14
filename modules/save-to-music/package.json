@@ -1,0 +1,6 @@
+{
+  "name": "save-to-music",
+  "version": "1.0.0",
+  "description": "Saves audio files to Music/VoiceRecorder on Android via MediaStore",
+  "main": "index"
+}
