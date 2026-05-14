@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as MediaLibrary from 'expo-media-library';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -49,6 +50,14 @@ export default Sentry.wrap(function RootLayout() {
       console.log('[Layout] Notifications permission done');
     } catch (e) {
       console.warn('[Layout] Notifications.requestPermissionsAsync failed:', e);
+    }
+
+    console.log('[Layout] requesting MediaLibrary permission…');
+    try {
+      await MediaLibrary.requestPermissionsAsync();
+      console.log('[Layout] MediaLibrary permission done');
+    } catch (e) {
+      console.warn('[Layout] MediaLibrary.requestPermissionsAsync failed:', e);
     }
 
     console.log('[Layout] initialising recording notification channel…');

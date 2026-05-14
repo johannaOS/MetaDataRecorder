@@ -1,19 +1,70 @@
-import { Platform } from 'react-native';
+import * as MediaLibrary from 'expo-media-library';
 import { Directory, File, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 import { generateSafeFilename } from './filename';
 
 const FOLDER_NAME = 'VoiceRecorder';
 
-// Primary path: standard Android external Music directory.
-// Works on Android 9 and, with requestLegacyExternalStorage in the manifest,
-// Android 10 (API 29). On Android 11+ (API 30+) scoped storage blocks this
-// path; the app-documents tier handles those devices.
-const ANDROID_MUSIC_PATH = 'file:///storage/emulated/0/Music/';
+// ── Tier 1: MediaStore via expo-media-library (Android 11+) ───────────────────
+// Uses the proper Android MediaStore API, which works on all Android versions
+// and places files in Music/VoiceRecorder/ where they're visible to file managers.
+
+async function tryMediaLibrarySave(cacheUri: string, title: string): Promise<string | null> {
+  if (Platform.OS !== 'android') return null;
+  console.log('[Save:Tier1] MediaLibrary save — cacheUri:', cacheUri);
+
+  let tempFile: File | null = null;
+  try {
+    // Only proceed if the user already granted permission at startup.
+    // Never request permissions here — that would show a dialog mid-flow.
+    const { status } = await MediaLibrary.getPermissionsAsync();
+    if (status !== 'granted') {
+      console.warn('[Save:Tier1] MediaLibrary permission not granted — status:', status);
+      return null;
+    }
+
+    // createAssetAsync uses the source filename as the MediaStore display name.
+    // Copy the cache file to a temp file with the title-based name so the
+    // asset in Music/VoiceRecorder/ gets the user's title, not a UUID.
+    const filename = generateSafeFilename(title, []);
+    tempFile = new File(new Directory(Paths.cache), filename);
+    new File(cacheUri).copy(tempFile);
+    console.log('[Save:Tier1] temp file with correct name:', tempFile.uri);
+
+    // Insert into MediaStore (creates a copy in external storage)
+    const asset = await MediaLibrary.createAssetAsync(tempFile.uri);
+    console.log('[Save:Tier1] asset created:', asset.filename, 'id:', asset.id);
+
+    // Temp file no longer needed — MediaStore owns its own copy
+    try { tempFile.delete(); } catch { /* best-effort */ }
+    tempFile = null;
+
+    // Move the asset into the VoiceRecorder album = Music/VoiceRecorder/ on Android
+    const album = await MediaLibrary.getAlbumAsync(FOLDER_NAME);
+    if (album) {
+      await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+    } else {
+      await MediaLibrary.createAlbumAsync(FOLDER_NAME, asset, false);
+    }
+    console.log('[Save:Tier1] asset moved to', FOLDER_NAME, 'album');
+
+    // Retrieve the file:// path after the album move (falls back to content:// URI)
+    const info = await MediaLibrary.getAssetInfoAsync(asset);
+    const finalUri = info.localUri ?? asset.uri;
+    console.log('[Save:Tier1] final URI:', finalUri);
+    return finalUri;
+
+  } catch (e) {
+    console.warn('[Save:Tier1] MediaLibrary failed:', String(e));
+    try { tempFile?.delete(); } catch { /* best-effort */ }
+    return null;
+  }
+}
 
 // ── Shared helper ─────────────────────────────────────────────────────────────
 
-function resolveUniqueFile(dir: Directory, title: string): [File, string] {
+function resolveUniqueFile(dir: Directory, title: string): File {
   let existingNames: string[] = [];
   try {
     existingNames = dir
@@ -34,45 +85,10 @@ function resolveUniqueFile(dir: Directory, title: string): [File, string] {
     destFile = new File(dir, filename);
   }
 
-  return [destFile, filename];
+  return destFile;
 }
 
-// ── Tier 1: direct filesystem write (Android 9 / 10 with legacy storage) ──────
-
-function tryDirectAndroidWrite(cacheUri: string, title: string): string | null {
-  if (Platform.OS !== 'android') return null;
-  console.log('[Save:Tier1] starting — cacheUri:', cacheUri);
-
-  try {
-    // Verify the source cache file actually exists before attempting the copy.
-    const srcFile = new File(cacheUri);
-    const srcInfo = srcFile.info();
-    console.log('[Save:Tier1] source exists:', srcFile.exists, 'size:', srcInfo.size ?? 'unknown');
-    if (!srcFile.exists) {
-      console.warn('[Save:Tier1] source file missing — cannot copy');
-      return null;
-    }
-
-    const vrDirUri = ANDROID_MUSIC_PATH + FOLDER_NAME + '/';
-    console.log('[Save:Tier1] target dir:', vrDirUri);
-    const vrDir = new Directory(vrDirUri);
-    vrDir.create({ intermediates: true, idempotent: true });
-    console.log('[Save:Tier1] directory ready');
-
-    const [destFile, filename] = resolveUniqueFile(vrDir, title);
-    console.log('[Save:Tier1] destination:', destFile.uri);
-
-    srcFile.copy(destFile);
-    console.log('[Save:Tier1] copy done — dest exists:', destFile.exists);
-
-    return destFile.uri;
-  } catch (e) {
-    console.warn('[Save:Tier1] failed (likely Android 11+ scoped storage):', String(e));
-    return null;
-  }
-}
-
-// ── Tier 2: app documents directory (guaranteed fallback) ─────────────────────
+// ── Tier 2: app documents directory (fallback, all platforms) ─────────────────
 
 function writeToDocuments(cacheUri: string, title: string): string {
   console.log('[Save:Tier2] writing to documents — cacheUri:', cacheUri);
@@ -91,7 +107,7 @@ function writeToDocuments(cacheUri: string, title: string): string {
   vrDir.create({ intermediates: true, idempotent: true });
   console.log('[Save:Tier2] directory ready:', vrDir.uri);
 
-  const [destFile, filename] = resolveUniqueFile(vrDir, title);
+  const destFile = resolveUniqueFile(vrDir, title);
   console.log('[Save:Tier2] destination:', destFile.uri);
 
   srcFile.copy(destFile);
@@ -105,8 +121,10 @@ function writeToDocuments(cacheUri: string, title: string): string {
 /**
  * Copies a cache-directory recording to permanent storage and returns its URI.
  *
- * Tier 1: direct write to /storage/emulated/0/Music/VoiceRecorder/ (Android 9–10).
- * Tier 2: app private documents/recordings/VoiceRecorder/ (all platforms, guaranteed).
+ * Tier 1 (Android): MediaStore via expo-media-library → Music/VoiceRecorder/
+ *   Requires READ_MEDIA_AUDIO permission granted at startup.
+ * Tier 2 (all platforms): app private documents/recordings/VoiceRecorder/
+ *   Always succeeds; used when Tier 1 is unavailable or permission denied.
  */
 export async function copyToPermanentStorage(
   cacheUri: string,
@@ -114,10 +132,12 @@ export async function copyToPermanentStorage(
 ): Promise<string> {
   console.log('[Save] copyToPermanentStorage — title:', title, 'cacheUri:', cacheUri);
 
-  const direct = tryDirectAndroidWrite(cacheUri, title);
-  if (direct) {
-    console.log('[Save] saved via Tier 1 (Music folder):', direct);
-    return direct;
+  if (Platform.OS === 'android') {
+    const media = await tryMediaLibrarySave(cacheUri, title);
+    if (media) {
+      console.log('[Save] saved via Tier 1 (Music/VoiceRecorder):', media);
+      return media;
+    }
   }
 
   const docs = writeToDocuments(cacheUri, title);
