@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as MediaLibrary from 'expo-media-library';
+import { setAudioModeAsync } from 'expo-audio';
 import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,8 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { autoBackupOnStartup } from '@/lib/backup';
-// Importing this module registers the background task at startup (module-level side effect).
+// Importing this module registers the background task and notifee foreground
+// service at startup (module-level side effects).
 import { initRecordingNotifications } from '@/lib/backgroundRecording';
 import { initDb } from '@/lib/db';
 import { S } from '@/lib/strings';
@@ -44,20 +45,23 @@ export default Sentry.wrap(function RootLayout() {
     initDb();
     autoBackupOnStartup(); // auto-backup runs after DB is ready
 
+    // Configure expo-audio for background playback. Must be called before any
+    // player is created so the audio session is in the right mode from the start.
+    // staysActiveInBackground keeps the audio stream alive during screen lock
+    // and app-switch; playsInSilentMode ensures iOS playback through silent switch.
+    try {
+      await setAudioModeAsync({ playsInSilentMode: true, staysActiveInBackground: true });
+      console.log('[Layout] audio mode set for background playback');
+    } catch (e) {
+      console.warn('[Layout] setAudioModeAsync failed:', e);
+    }
+
     console.log('[Layout] requesting Notifications permission…');
     try {
       await Notifications.requestPermissionsAsync();
       console.log('[Layout] Notifications permission done');
     } catch (e) {
       console.warn('[Layout] Notifications.requestPermissionsAsync failed:', e);
-    }
-
-    console.log('[Layout] requesting MediaLibrary permission…');
-    try {
-      await MediaLibrary.requestPermissionsAsync();
-      console.log('[Layout] MediaLibrary permission done');
-    } catch (e) {
-      console.warn('[Layout] MediaLibrary.requestPermissionsAsync failed:', e);
     }
 
     console.log('[Layout] initialising recording notification channel…');

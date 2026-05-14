@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import { setAudioModeAsync } from 'expo-audio';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
@@ -379,9 +380,14 @@ export default function RecorderScreen() {
         return;
       }
 
-      // On iOS: switch audio mode so playback routes through the speaker.
+      // Switch audio session from recording mode back to playback mode.
+      // On iOS: expo-av controls the AVAudioSession — disable recording flag.
+      // On Android: hand the session back to expo-audio so background playback
+      //             works correctly after the user navigates to the library.
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      } else {
+        setAudioModeAsync({ playsInSilentMode: true, staysActiveInBackground: true }).catch(() => {});
       }
       resetRecorderState();
 
