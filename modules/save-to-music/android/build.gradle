@@ -1,6 +1,13 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
+// safeExtGet is defined by the root project's build.gradle in a standard
+// Expo/React Native project. For local modules outside that tree, redefine
+// it here so we pick up the same values the root project uses.
+def safeExtGet(prop, fallback) {
+  rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
 android {
   namespace "expo.modules.savetomusic"
   compileSdkVersion safeExtGet("compileSdkVersion", 36)
