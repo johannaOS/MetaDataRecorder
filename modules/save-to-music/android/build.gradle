@@ -1,14 +1,17 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'expo-modules-autolinking'
 
 android {
   namespace "expo.modules.savetomusic"
-  compileSdkVersion safeExtGet("compileSdkVersion", 35)
+  compileSdkVersion safeExtGet("compileSdkVersion", 36)
 
   defaultConfig {
     minSdkVersion safeExtGet("minSdkVersion", 24)
-    targetSdkVersion safeExtGet("targetSdkVersion", 35)
+    targetSdkVersion safeExtGet("targetSdkVersion", 36)
+  }
+
+  buildFeatures {
+    buildConfig false
   }
 
   compileOptions {
@@ -17,7 +20,7 @@ android {
   }
 
   kotlinOptions {
-    jvmTarget = JavaVersion.VERSION_17.majorVersion
+    jvmTarget = "17"
   }
 }
 
