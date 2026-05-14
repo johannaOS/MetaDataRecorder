@@ -46,7 +46,6 @@
     "plugins": [
       "expo-router",
       "expo-task-manager",
-      "@notifee/react-native",
       "./plugins/withForegroundMicrophoneService",
       [
         "expo-av",
