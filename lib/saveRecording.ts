@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { saveAudioFile } from 'save-to-music';
+import * as Sentry from '@sentry/react-native';
 
 import { generateSafeFilename } from './filename';
 
@@ -15,11 +16,16 @@ const FOLDER_NAME = 'VoiceRecorder';
 
 async function tryNativeSave(cacheUri: string, displayName: string): Promise<string | null> {
   try {
+    Sentry.addBreadcrumb({ category: 'save', message: 'Tier 1: attempting MediaStore save', level: 'info', data: { displayName } });
     console.log('[Save:Tier1] native MediaStore save — displayName:', displayName);
     const result = await saveAudioFile(cacheUri, displayName);
-    if (result) console.log('[Save:Tier1] saved:', result);
+    if (result) {
+      Sentry.addBreadcrumb({ category: 'save', message: 'Tier 1: MediaStore save succeeded', level: 'info', data: { uri: result } });
+      console.log('[Save:Tier1] saved:', result);
+    }
     return result;
   } catch (e) {
+    Sentry.addBreadcrumb({ category: 'save', message: 'Tier 1: MediaStore save failed, will fall back', level: 'warning', data: { error: String(e) } });
     console.warn('[Save:Tier1] native save failed:', String(e));
     return null;
   }
@@ -100,12 +106,14 @@ export async function copyToPermanentStorage(
     const displayName = generateSafeFilename(title, []);
     const native = await tryNativeSave(cacheUri, displayName);
     if (native) {
+      Sentry.addBreadcrumb({ category: 'save', message: 'copyToPermanentStorage complete (Tier 1)', level: 'info', data: { title } });
       console.log('[Save] saved via Tier 1 (Music/VoiceRecorder):', native);
       return native;
     }
   }
 
   const docs = writeToDocuments(cacheUri, title);
+  Sentry.addBreadcrumb({ category: 'save', message: 'copyToPermanentStorage complete (Tier 2)', level: 'info', data: { title, platform: Platform.OS } });
   console.log('[Save] saved via Tier 2 (documents):', docs);
   return docs;
 }

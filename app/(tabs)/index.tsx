@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { setAudioModeAsync } from 'expo-audio';
+import * as Sentry from '@sentry/react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
@@ -171,6 +172,7 @@ export default function RecorderScreen() {
       elapsedRef.current = actual;
       setElapsed(actual);
       if (state !== 'paused' && !timerRef.current) startTimer();
+      Sentry.addBreadcrumb({ category: 'recording', message: 'App foregrounded during recording', level: 'info', data: { elapsedSeconds: actual } });
       console.log('[Recorder] foregrounded — wall-clock elapsed:', actual, 's');
     });
     return () => sub.remove();
@@ -275,6 +277,7 @@ export default function RecorderScreen() {
   async function startRecording() {
     const { granted } = await Audio.requestPermissionsAsync();
     if (!granted) { Alert.alert(S.permissionRequired, S.microphonePermissionMessage); return; }
+    Sentry.addBreadcrumb({ category: 'recording', message: 'Setting audio mode', level: 'info', data: { platform: Platform.OS } });
     console.log('[Recorder] setting audio mode — platform:', Platform.OS);
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: true,
@@ -284,9 +287,7 @@ export default function RecorderScreen() {
       shouldDuckAndroid: false,
       interruptionModeIOS: InterruptionModeIOS.DoNotMix,
     });
-    console.log('[Recorder] audio mode set');
     try {
-      console.log('[Recorder] creating recording…');
       const { recording } = await Audio.Recording.createAsync({
         ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
         isMeteringEnabled: true,
@@ -294,6 +295,7 @@ export default function RecorderScreen() {
       recordingRef.current = recording;
       recordingStartMsRef.current = Date.now();
       pausedAccumulatedMsRef.current = 0;
+      Sentry.addBreadcrumb({ category: 'recording', message: 'Recording started', level: 'info', data: { platform: Platform.OS } });
       console.log('[Recorder] recording started');
       setBars(Array(BAR_COUNT).fill(BAR_MIN));
       setElapsed(0);
@@ -303,10 +305,8 @@ export default function RecorderScreen() {
       startTimer();
       startMeterPolling();
       showRecordingNotification(0).catch(() => {});
-      if (TaskManager.isTaskDefined(BACKGROUND_RECORDING_TASK)) {
-        console.log('[Recorder] background task registered ✓');
-      }
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'startRecording' } });
       console.error('[Recorder] startRecording error:', e);
       Alert.alert(S.error, S.couldNotStartRecording);
     }
@@ -320,8 +320,10 @@ export default function RecorderScreen() {
       await recordingRef.current!.pauseAsync();
       pauseStartMsRef.current = Date.now();
       setState('paused');
+      Sentry.addBreadcrumb({ category: 'recording', message: 'Recording paused', level: 'info', data: { elapsedSeconds: elapsedRef.current } });
       updateRecordingNotification(elapsedRef.current).catch(() => {});
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'pauseRecording' } });
       console.error('[Recorder] pauseRecording error:', e);
       Alert.alert(S.error, S.couldNotPauseRecording);
     }
@@ -335,8 +337,10 @@ export default function RecorderScreen() {
       setState('recording');
       startTimer();
       startMeterPolling();
+      Sentry.addBreadcrumb({ category: 'recording', message: 'Recording resumed', level: 'info', data: { elapsedSeconds: elapsedRef.current } });
       showRecordingNotification(elapsedRef.current).catch(() => {});
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'resumeRecording' } });
       console.error('[Recorder] resumeRecording error:', e);
       Alert.alert(S.error, S.couldNotResumeRecording);
     }
@@ -345,6 +349,7 @@ export default function RecorderScreen() {
   // ── Discard recording (no save, back-button confirmation) ────────────────────
   async function handleDiscardRecording() {
     if (state === 'idle') return;
+    Sentry.addBreadcrumb({ category: 'recording', message: 'Recording discarded', level: 'info', data: { elapsedSeconds: elapsedRef.current } });
     setIsFormExpanded(false);
     stopTimer();
     stopMeterPolling();
@@ -365,6 +370,7 @@ export default function RecorderScreen() {
     // Wall-clock duration — accurate even after background/screen-lock cycles where
     // recorderState.durationMillis resets to 0 on Android.
     const duration = Math.round(getElapsedMs() / 1000);
+    Sentry.addBreadcrumb({ category: 'recording', message: 'Stopping recording', level: 'info', data: { duration, platform: Platform.OS } });
     console.log('[Recorder] stopping — wall-clock duration:', duration, 's');
 
     const rec = recordingRef.current;
@@ -372,18 +378,17 @@ export default function RecorderScreen() {
       await rec?.stopAndUnloadAsync();
       const cacheUri = rec?.getURI() ?? null;
       console.log('[Recorder] stopped — URI:', cacheUri);
-      console.log('[Recorder] format: .m4a (MPEG-4 / AAC, 44100 Hz, 2ch, 128 kbps)');
 
       if (!cacheUri) {
+        Sentry.captureMessage('Recording URI null after stopAndUnloadAsync', 'error');
         Alert.alert(S.recordingError, S.recordingUriNull);
         resetRecorderState();
         return;
       }
 
+      Sentry.addBreadcrumb({ category: 'recording', message: 'Recording stopped, URI obtained', level: 'info', data: { duration } });
+
       // Switch audio session from recording mode back to playback mode.
-      // On iOS: expo-av controls the AVAudioSession — disable recording flag.
-      // On Android: hand the session back to expo-audio so background playback
-      //             works correctly after the user navigates to the library.
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       } else {
@@ -392,11 +397,11 @@ export default function RecorderScreen() {
       resetRecorderState();
 
       if (savedMeta !== null) {
-        // Metadata pre-filled via inline form → title is known, copy with correct filename.
         let finalUri: string;
         try {
           finalUri = await copyToPermanentStorage(cacheUri, savedMeta.name || S.untitled);
         } catch (saveErr) {
+          Sentry.captureException(saveErr, { tags: { flow: 'copyToPermanentStorage', hasMeta: 'true' } });
           console.error('[Recorder] copyToPermanentStorage error:', saveErr);
           Alert.alert(S.error, `${S.couldNotSaveRecording}\n\n${String(saveErr)}`);
           return;
@@ -412,8 +417,6 @@ export default function RecorderScreen() {
         setSavedMeta(null);
         router.replace('/library');
       } else {
-        // No pre-saved metadata → pass the cache URI to Screen 2.
-        // Screen 2 will copy it to permanent storage once the user enters a title.
         router.push({
           pathname: '/metadata',
           params: {
@@ -431,6 +434,7 @@ export default function RecorderScreen() {
         });
       }
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'handleStop' } });
       console.error('[Recorder] handleStop error:', e);
       Alert.alert(S.error, S.couldNotStopRecording);
     }
