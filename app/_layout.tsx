@@ -1,6 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { setAudioModeAsync } from 'expo-audio';
+import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -44,6 +46,17 @@ export default Sentry.wrap(function RootLayout() {
   useEffect(() => { (async () => {
     initDb();
     autoBackupOnStartup(); // auto-backup runs after DB is ready
+
+    // Identify the device in Sentry so errors show which device was affected.
+    // androidId is stable per device + app signing key (resets on uninstall).
+    // iOS uses the vendor ID which is stable per app developer.
+    // This does not collect any personal data — it's a hardware/install identifier.
+    try {
+      const deviceId = Platform.OS === 'android'
+        ? Application.androidId
+        : await Application.getIosIdForVendorAsync();
+      if (deviceId) Sentry.setUser({ id: deviceId });
+    } catch { /* ignore — Sentry still works without user identity */ }
 
     // Configure expo-audio for background playback. Must be called before any
     // player is created so the audio session is in the right mode from the start.

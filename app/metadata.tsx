@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as Sentry from '@sentry/react-native';
 import { File } from 'expo-file-system';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -209,6 +210,7 @@ export default function MetadataScreen() {
       }
       return cacheUri;
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'stopLiveRecording' } });
       console.error('[Metadata] stopLiveRecording error:', e);
       Alert.alert(S.error, S.couldNotStopRecording);
       return null;
@@ -248,9 +250,11 @@ export default function MetadataScreen() {
     // (b) live recording stopped via handleStopRecording before pressing Save,
     // (c) live recording stopped inline inside this handleSave.
     if (isCachedPath(filePath)) {
+      Sentry.addBreadcrumb({ category: 'save', message: 'Copying cache file to permanent storage', level: 'info', data: { title: name.trim() || S.untitled } });
       try {
         filePath = await copyToPermanentStorage(filePath, name.trim() || S.untitled);
       } catch (e) {
+        Sentry.captureException(e, { tags: { flow: 'copyToPermanentStorage', screen: 'metadata' } });
         console.error('[Metadata] copyToPermanentStorage error:', e);
         Alert.alert(S.error, `${S.couldNotSaveRecording}\n\n${String(e)}`);
         setSaving(false);
@@ -258,6 +262,7 @@ export default function MetadataScreen() {
       }
     }
 
+    Sentry.addBreadcrumb({ category: 'save', message: 'Inserting recording into DB', level: 'info', data: { duration } });
     try {
       insertRecording({
         name: name.trim() || S.untitled,
@@ -271,8 +276,10 @@ export default function MetadataScreen() {
         createdAt: new Date().toISOString(),
         customData: JSON.stringify(customValues),
       });
-      router.replace('/library'); // save → Library (root screen, back exits)
+      Sentry.addBreadcrumb({ category: 'save', message: 'Recording saved successfully', level: 'info' });
+      router.replace('/library');
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'insertRecording', screen: 'metadata' } });
       console.error('[Metadata] handleSave error:', e);
       setSaving(false);
       Alert.alert(S.error, S.couldNotSaveRecording);
