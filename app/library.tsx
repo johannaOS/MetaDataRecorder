@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { type AudioPlayer, createAudioPlayer } from 'expo-audio';
 import { File } from 'expo-file-system';
+import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -111,6 +112,7 @@ export default function LibraryScreen() {
           playerRef.current = null;
         }
         setPlayingId(null);
+        hidePlaybackNotification().catch(() => {});
       };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -122,6 +124,7 @@ export default function LibraryScreen() {
       playerRef.current?.remove();
       playerRef.current = null;
       setPlayingId(null);
+      hidePlaybackNotification().catch(() => {});
       return;
     }
     if (playerRef.current) {
@@ -140,12 +143,14 @@ export default function LibraryScreen() {
       player.play();
       playerRef.current = player;
       setPlayingId(item.id);
+      showPlaybackNotification(item.name || S.appTitle).catch(() => {});
 
       player.addListener('playbackStatusUpdate', (status) => {
         if (status.didJustFinish) {
           playerRef.current?.remove();
           playerRef.current = null;
           setPlayingId(null);
+          hidePlaybackNotification().catch(() => {});
         }
       });
     } catch (e) {

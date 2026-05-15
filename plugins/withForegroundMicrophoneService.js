@@ -14,7 +14,9 @@
 const { withAndroidManifest } = require('@expo/config-plugins');
 
 const NOTIFEE_SERVICE  = 'app.notifee.core.ForegroundService';
-const NOTIFEE_FGS_TYPE = 'microphone';
+// microphone — keeps mic access during recording
+// mediaPlayback — keeps audio output alive during background playback (Android 14 requirement)
+const NOTIFEE_FGS_TYPE = 'microphone|mediaPlayback';
 
 module.exports = function withForegroundMicrophoneService(config) {
   return withAndroidManifest(config, (config) => {

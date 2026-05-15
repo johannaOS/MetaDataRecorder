@@ -20,9 +20,10 @@ TaskManager.defineTask(BACKGROUND_RECORDING_TASK, () => {
 notifee.registerForegroundService(() => new Promise(() => {}));
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const CHANNEL_ID      = 'recording-status';
-const NOTIFICATION_ID = 'recording-in-progress';
-export const STOP_ACTION = 'stop';
+const CHANNEL_ID           = 'recording-status';
+const NOTIFICATION_ID      = 'recording-in-progress';
+const PLAYBACK_NOTIF_ID    = 'playback-in-progress';
+export const STOP_ACTION   = 'stop';
 
 // ── One-time setup (call once during app initialisation) ──────────────────────
 export async function initRecordingNotifications(): Promise<void> {
@@ -82,6 +83,35 @@ export async function hideRecordingNotification(): Promise<void> {
   try {
     await notifee.cancelNotification(NOTIFICATION_ID);
   } catch { /* already gone */ }
+}
+
+// ── Playback foreground service ───────────────────────────────────────────────
+// Keeps audio alive during screen lock and app-switch.
+// Notifee's service is declared with foregroundServiceType="microphone|mediaPlayback"
+// (via withForegroundMicrophoneService plugin), satisfying Android 14's requirement
+// that background audio playback runs inside a mediaPlayback foreground service.
+
+export async function showPlaybackNotification(title: string): Promise<void> {
+  try {
+    await notifee.displayNotification({
+      id: PLAYBACK_NOTIF_ID,
+      title: S.appTitle,
+      body: `▶ ${title}`,
+      android: {
+        channelId: CHANNEL_ID,
+        asForegroundService: true,
+        ongoing: true,
+        importance: AndroidImportance.LOW,
+      },
+    });
+  } catch (e) {
+    console.log('[PlaybackNotification] show failed:', e);
+  }
+}
+
+export async function hidePlaybackNotification(): Promise<void> {
+  try { await notifee.stopForegroundService(); } catch { /* already stopped */ }
+  try { await notifee.cancelNotification(PLAYBACK_NOTIF_ID); } catch { /* already gone */ }
 }
 
 // ── Foreground event subscription ─────────────────────────────────────────────

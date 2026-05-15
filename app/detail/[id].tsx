@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { File } from 'expo-file-system';
+import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -116,6 +117,23 @@ export default function DetailScreen() {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerStatus.duration, player.id]);
+
+  // ── Background playback foreground service ────────────────────────────────
+  // Show a notification (= foreground service) while playing so Android 14
+  // keeps audio alive during screen lock and app-switch.
+  // The hide is debounced by 400 ms so scrubbing (which briefly pauses the
+  // player) doesn't flicker the foreground service on and off.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (isPlaying) {
+      showPlaybackNotification(recording?.name ?? S.appTitle).catch(() => {});
+    } else {
+      timer = setTimeout(() => {
+        hidePlaybackNotification().catch(() => {});
+      }, 400);
+    }
+    return () => { if (timer) clearTimeout(timer); };
+  }, [isPlaying, recording?.name]);
 
   // ── Player controls ────────────────────────────────────────────────────────
 
