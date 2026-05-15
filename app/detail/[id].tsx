@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { Audio } from 'expo-av';
 import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -61,15 +61,18 @@ export default function DetailScreen() {
   const [editCustomValues, setEditCustomValues] = useState<Record<string, string>>({});
   const [fieldConfigs] = useFieldConfig();
 
-  // Player — useAudioPlayer recreates when source changes (new recording loaded)
-  const player = useAudioPlayer(recording ? { uri: recording.filePath } : null);
-  const playerStatus = useAudioPlayerStatus(player);
-  const isPlaying = playerStatus.playing;
+  // Player — expo-av Sound does not auto-pause on Activity.onPause(), enabling
+  // true background playback when the screen locks or the app is switched.
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [positionMs_live, setPositionMs] = useState(0);
+  const [durationMs_loaded, setDurationMs] = useState(0);
+  const [didJustFinish, setDidJustFinish] = useState(false);
   // During scrubbing use local state so the slider doesn't jump
   const [seekPositionMs, setSeekPositionMs] = useState<number | null>(null);
-  const positionMs = seekPositionMs ?? Math.round(playerStatus.currentTime * 1000);
-  const durationMs = playerStatus.duration > 0
-    ? Math.round(playerStatus.duration * 1000)
+  const positionMs = seekPositionMs ?? positionMs_live;
+  const durationMs = durationMs_loaded > 0
+    ? durationMs_loaded
     : (recording?.duration ?? 0) * 1000;
   const isSeekingRef = useRef(false);
   const wasPlayingRef = useRef(false);
@@ -93,36 +96,65 @@ export default function DetailScreen() {
     }
   }, [id]);
 
-  // Reset autoplay flag when the player is recreated (new recording)
+  // Create / recreate the Sound when the recording file changes.
+  // expo-av Sound is unloaded and reloaded on each mount / filePath change.
   useEffect(() => {
+    if (!recording?.filePath) return;
     hasAutoPlayedRef.current = false;
     setSeekPositionMs(null);
-  }, [player.id]);
+    setIsPlaying(false);
+    setPositionMs(0);
+    setDurationMs(0);
+    setDidJustFinish(false);
 
-  // Auto-play or resume from handoff position once audio has loaded
-  useEffect(() => {
-    if (playerStatus.duration <= 0 || hasAutoPlayedRef.current) return;
-    hasAutoPlayedRef.current = true;
+    let mounted = true;
+    let createdSound: Audio.Sound | null = null;
+
     (async () => {
       try {
-        if (playFrom && Number(playFrom) > 0) {
-          await player.seekTo(Number(playFrom) / 1000);
-          player.play();
-        } else if (autoPlay === '1') {
-          player.play();
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: recording.filePath },
+          { progressUpdateIntervalMillis: 100 },
+          (status) => {
+            if (!mounted || !status.isLoaded) return;
+            setIsPlaying(status.isPlaying);
+            setPositionMs(status.positionMillis);
+            setDurationMs(status.durationMillis ?? 0);
+            setDidJustFinish(!!status.didJustFinish);
+            if (status.didJustFinish) setIsPlaying(false);
+          },
+        );
+        if (!mounted) { sound.unloadAsync().catch(() => {}); return; }
+        createdSound = sound;
+        soundRef.current = sound;
+
+        // Auto-play or seek to handoff position once loaded
+        if (!hasAutoPlayedRef.current) {
+          hasAutoPlayedRef.current = true;
+          if (playFrom && Number(playFrom) > 0) {
+            await sound.setPositionAsync(Number(playFrom));
+            sound.playAsync().catch(() => {});
+          } else if (autoPlay === '1') {
+            sound.playAsync().catch(() => {});
+          }
         }
       } catch (e) {
-        console.error('[Detail] autoplay error:', e);
+        console.error('[Detail] createAsync error:', e);
       }
     })();
+
+    return () => {
+      mounted = false;
+      createdSound?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerStatus.duration, player.id]);
+  }, [recording?.filePath]);
 
   // ── Background playback foreground service ────────────────────────────────
-  // Show a notification (= foreground service) while playing so Android 14
-  // keeps audio alive during screen lock and app-switch.
-  // The hide is debounced by 400 ms so scrubbing (which briefly pauses the
-  // player) doesn't flicker the foreground service on and off.
+  // expo-av Sound does not auto-pause when the Activity pauses, so isPlaying
+  // stays true during screen lock / app-switch. The debounce only fires when
+  // the user genuinely pauses or the track finishes.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     if (isPlaying) {
@@ -138,14 +170,16 @@ export default function DetailScreen() {
   // ── Player controls ────────────────────────────────────────────────────────
 
   async function togglePlay() {
+    const sound = soundRef.current;
+    if (!sound) return;
     try {
       if (isPlaying) {
-        player.pause();
+        await sound.pauseAsync();
       } else {
-        if (playerStatus.didJustFinish || (durationMs > 0 && positionMs >= durationMs - 200)) {
-          await player.seekTo(0);
+        if (didJustFinish || (durationMs > 0 && positionMs >= durationMs - 200)) {
+          await sound.setPositionAsync(0);
         }
-        player.play();
+        await sound.playAsync();
       }
     } catch (e) {
       console.error('[Detail] togglePlay error:', e);
@@ -153,18 +187,18 @@ export default function DetailScreen() {
     }
   }
 
-  function onSeekStart(value: number) {
+  async function onSeekStart(value: number) {
     isSeekingRef.current = true;
     wasPlayingRef.current = isPlaying;
     setSeekPositionMs(value);
-    player.pause();
+    await soundRef.current?.pauseAsync().catch(() => {});
   }
 
   async function onSeekComplete(value: number) {
     isSeekingRef.current = false;
     try {
-      await player.seekTo(value / 1000);
-      if (wasPlayingRef.current) player.play();
+      await soundRef.current?.setPositionAsync(value);
+      if (wasPlayingRef.current) await soundRef.current?.playAsync();
     } catch (e) {
       console.error('[Detail] seek error:', e);
     }

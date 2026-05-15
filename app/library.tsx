@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { type AudioPlayer, createAudioPlayer } from 'expo-audio';
+import { Audio } from 'expo-av';
 import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect } from 'expo-router';
@@ -55,7 +55,7 @@ export default function LibraryScreen() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [sheetItem, setSheetItem] = useState<Recording | null>(null);
-  const playerRef = useRef<AudioPlayer | null>(null);
+  const playerRef = useRef<Audio.Sound | null>(null);
   const [showAddKeyword, setShowAddKeyword] = useState(false);
   const [newKeywordLabel, setNewKeywordLabel] = useState('');
 
@@ -121,8 +121,8 @@ export default function LibraryScreen() {
       reload(search, typeFilter);
       return () => {
         if (playerRef.current) {
-          try { playerRef.current.pause(); } catch { /* already stopped */ }
-          playerRef.current.remove();
+          playerRef.current.pauseAsync().catch(() => {});
+          playerRef.current.unloadAsync().catch(() => {});
           playerRef.current = null;
         }
         setPlayingId(null);
@@ -133,17 +133,17 @@ export default function LibraryScreen() {
     }, [])
   );
 
-  function togglePlay(item: Recording) {
+  async function togglePlay(item: Recording) {
     if (playingId === item.id) {
-      playerRef.current?.pause();
-      playerRef.current?.remove();
+      await playerRef.current?.pauseAsync().catch(() => {});
+      await playerRef.current?.unloadAsync().catch(() => {});
       playerRef.current = null;
       setPlayingId(null);
       hidePlaybackNotification().catch(() => {});
       return;
     }
     if (playerRef.current) {
-      playerRef.current.remove();
+      await playerRef.current.unloadAsync().catch(() => {});
       playerRef.current = null;
     }
     try {
@@ -154,20 +154,22 @@ export default function LibraryScreen() {
         return;
       }
 
-      const player = createAudioPlayer({ uri: item.filePath });
-      player.play();
-      playerRef.current = player;
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: item.filePath },
+        undefined,
+        (status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            playerRef.current?.unloadAsync().catch(() => {});
+            playerRef.current = null;
+            setPlayingId(null);
+            hidePlaybackNotification().catch(() => {});
+          }
+        },
+      );
+      await sound.playAsync();
+      playerRef.current = sound;
       setPlayingId(item.id);
       showPlaybackNotification(item.name || S.appTitle).catch(() => {});
-
-      player.addListener('playbackStatusUpdate', (status) => {
-        if (status.didJustFinish) {
-          playerRef.current?.remove();
-          playerRef.current = null;
-          setPlayingId(null);
-          hidePlaybackNotification().catch(() => {});
-        }
-      });
     } catch (e) {
       console.error('[Library] playback error for URI', item.filePath, ':', e);
       Alert.alert(S.playbackError, String(e));
@@ -184,6 +186,14 @@ export default function LibraryScreen() {
   // ── Deletion helpers ──────────────────────────────────────────────────────────
 
   async function deleteRecordingFiles(ids: number[], deleteFiles: boolean) {
+    // Stop playback if the currently playing item is being deleted
+    if (playingId !== null && ids.includes(playingId)) {
+      await playerRef.current?.pauseAsync().catch(() => {});
+      await playerRef.current?.unloadAsync().catch(() => {});
+      playerRef.current = null;
+      setPlayingId(null);
+      hidePlaybackNotification().catch(() => {});
+    }
     for (const id of ids) {
       const rec = recordings.find(r => r.id === id);
       if (!rec) continue;
@@ -254,11 +264,15 @@ export default function LibraryScreen() {
           let playFrom = 0;
           const wasPlaying = playingId === item.id;
           if (wasPlaying && playerRef.current) {
-            try { playFrom = Math.round(playerRef.current.currentTime * 1000); } catch { }
-            playerRef.current.pause();
-            playerRef.current.remove();
+            try {
+              const st = await playerRef.current.getStatusAsync();
+              if (st.isLoaded) playFrom = st.positionMillis;
+            } catch { }
+            await playerRef.current.pauseAsync().catch(() => {});
+            await playerRef.current.unloadAsync().catch(() => {});
             playerRef.current = null;
             setPlayingId(null);
+            hidePlaybackNotification().catch(() => {});
           }
           router.push({
             pathname: '/detail/[id]',
