@@ -193,11 +193,18 @@ export default function LibraryScreen() {
       playerRef.current = null;
     }
     try {
-      const fileRef = new File(item.filePath);
-      console.log('[Library] file check —', item.filePath, '— exists:', fileRef.exists, fileRef.exists ? `size: ${fileRef.size} bytes` : '(missing)');
-      if (!fileRef.exists) {
-        Alert.alert(S.fileNotFound, S.fileNoLongerExists + item.filePath);
-        return;
+      // content:// URIs (saved via MediaStore) cannot be checked with expo-file-system's
+      // File class — it only handles file:// URIs. For content:// URIs, skip the check
+      // and let Audio.Sound.createAsync handle missing files via its own error path.
+      if (!item.filePath.startsWith('content://')) {
+        const fileRef = new File(item.filePath);
+        console.log('[Library] file check —', item.filePath, '— exists:', fileRef.exists, fileRef.exists ? `size: ${fileRef.size} bytes` : '(missing)');
+        if (!fileRef.exists) {
+          Alert.alert(S.fileNotFound, S.fileNoLongerExists + item.filePath);
+          return;
+        }
+      } else {
+        console.log('[Library] MediaStore URI — skipping file system check:', item.filePath);
       }
 
       const { sound } = await Audio.Sound.createAsync(
