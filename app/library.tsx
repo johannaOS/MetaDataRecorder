@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
-import { router, Stack, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteAudioFile } from 'save-to-music';
 import {
   Alert,
+  BackHandler,
   FlatList,
   Modal,
   Platform,
@@ -48,6 +49,7 @@ export default function LibraryScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
@@ -71,6 +73,50 @@ export default function LibraryScreen() {
     });
   }
   function cancelSelection() { setSelectedIds(new Set()); }
+
+  // ── Header options — selection mode vs normal ─────────────────────────────────
+  // useNavigation().setOptions() is more reliable than passing dynamic options
+  // to <Stack.Screen> — it updates immediately when state changes.
+  useEffect(() => {
+    if (isSelecting) {
+      navigation.setOptions({
+        headerLeft: () => (
+          <TouchableOpacity onPress={cancelSelection} hitSlop={8} style={{ padding: 4 }}>
+            <Text style={{ color: colors.tint, fontSize: 16 }}>{S.cancelSelection}</Text>
+          </TouchableOpacity>
+        ),
+        headerTitle: `${selectedIds.size} ${selectedIds.size === 1 ? 'vald' : 'valda'}`,
+        headerRight: () => (
+          <TouchableOpacity onPress={handleMultiDelete} hitSlop={8} style={{ padding: 4 }}>
+            <Text style={{ color: '#e53935', fontSize: 16, fontWeight: '600' }}>{S.deleteSelected}</Text>
+          </TouchableOpacity>
+        ),
+      });
+    } else {
+      navigation.setOptions({
+        headerLeft: undefined,
+        headerTitle: undefined,
+        headerRight: () => (
+          <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
+            <Ionicons name="settings-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
+        ),
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelecting, selectedIds.size]);
+
+  // ── Hardware back button — cancel selection instead of navigating back ────────
+  useFocusEffect(
+    useCallback(() => {
+      if (!isSelecting) return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        cancelSelection();
+        return true; // prevent default back navigation
+      });
+      return () => sub.remove();
+    }, [isSelecting])
+  );
 
   function reload(q: string, tf: string | null) {
     setKeywords(getAllKeywords());
@@ -327,25 +373,7 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={isSelecting ? {
-        headerLeft: () => (
-          <TouchableOpacity onPress={cancelSelection} hitSlop={8} style={{ padding: 4 }}>
-            <Text style={{ color: colors.tint, fontSize: 16 }}>{S.cancelSelection}</Text>
-          </TouchableOpacity>
-        ),
-        headerTitle: `${selectedIds.size} ${selectedIds.size === 1 ? 'vald' : 'valda'}`,
-        headerRight: () => (
-          <TouchableOpacity onPress={handleMultiDelete} hitSlop={8} style={{ padding: 4 }} disabled={selectedIds.size === 0}>
-            <Text style={{ color: '#e53935', fontSize: 16, fontWeight: '600' }}>{S.deleteSelected}</Text>
-          </TouchableOpacity>
-        ),
-      } : {
-        headerRight: () => (
-          <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
-            <Ionicons name="settings-outline" size={22} color={colors.text} />
-          </TouchableOpacity>
-        ),
-      }} />
+      <Stack.Screen options={{}} />
 
       {/* Search bar */}
       <View style={[styles.searchBar, { backgroundColor: colors.icon + '22' }]}>

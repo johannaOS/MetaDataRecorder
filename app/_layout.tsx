@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { setAudioModeAsync } from 'expo-audio';
 import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
@@ -58,13 +59,29 @@ export default Sentry.wrap(function RootLayout() {
       if (deviceId) Sentry.setUser({ id: deviceId });
     } catch { /* ignore — Sentry still works without user identity */ }
 
-    // Configure expo-audio for background playback. Must be called before any
-    // player is created so the audio session is in the right mode from the start.
-    // staysActiveInBackground keeps the audio stream alive during screen lock
-    // and app-switch; playsInSilentMode ensures iOS playback through silent switch.
+    // Configure expo-av for playback — must be set before Audio.Sound.createAsync
+    // is ever called. Without staysActiveInBackground: true, expo-av throws
+    // AudioFocusNotAcquiredException when playAsync() is called.
+    // This is overridden by startRecording() (sets allowsRecordingIOS: true etc.)
+    // and restored in handleStop() when recording ends.
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: false,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+      });
+      console.log('[Layout] expo-av audio mode set for playback');
+    } catch (e) {
+      console.warn('[Layout] Audio.setAudioModeAsync failed:', e);
+    }
+    // Configure expo-audio for background playback (used by the playback
+    // foreground service and audio session management).
     try {
       await setAudioModeAsync({ playsInSilentMode: true, staysActiveInBackground: true });
-      console.log('[Layout] audio mode set for background playback');
+      console.log('[Layout] expo-audio mode set for background playback');
     } catch (e) {
       console.warn('[Layout] setAudioModeAsync failed:', e);
     }
