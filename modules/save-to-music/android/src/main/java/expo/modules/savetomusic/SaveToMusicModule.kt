@@ -18,6 +18,22 @@ class SaveToMusicModule : Module() {
     AsyncFunction("saveAudioFile") { localUri: String, displayName: String ->
       saveToVoiceRecorder(localUri, displayName)
     }
+
+    // Deletes a MediaStore entry by content:// URI.
+    // Returns true if a row was deleted, false on failure or if not found.
+    AsyncFunction("deleteAudioFile") { uri: String ->
+      deleteFromMediaStore(uri)
+    }
+  }
+
+  private fun deleteFromMediaStore(uri: String): Boolean {
+    return try {
+      val parsedUri = android.net.Uri.parse(uri)
+      val resolver = requireNotNull(appContext.reactContext).contentResolver
+      resolver.delete(parsedUri, null, null) > 0
+    } catch (e: Exception) {
+      false
+    }
   }
 
   private fun saveToVoiceRecorder(localUri: String, displayName: String): String {

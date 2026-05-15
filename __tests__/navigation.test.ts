@@ -39,6 +39,7 @@ jest.mock('expo-router', () => ({
 jest.mock('expo-sqlite');
 jest.mock('save-to-music', () => ({
   saveAudioFile: jest.fn().mockResolvedValue('content://media/audio/1234'),
+  deleteAudioFile: jest.fn().mockResolvedValue(true),
 }));
 jest.mock('@notifee/react-native', () => ({
   default: {

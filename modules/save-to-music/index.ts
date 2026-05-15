@@ -17,3 +17,8 @@ export async function saveAudioFile(
 ): Promise<string | null> {
   return SaveToMusicNative.saveAudioFile(localUri, displayName);
 }
+
+/** Deletes a MediaStore content:// entry. Returns true if deleted. Android only. */
+export async function deleteAudioFile(uri: string): Promise<boolean> {
+  return SaveToMusicNative.deleteAudioFile(uri);
+}

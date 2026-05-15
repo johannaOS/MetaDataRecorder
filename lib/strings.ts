@@ -59,6 +59,12 @@ export const S = {
   filterLabel: 'Filtrera:',
   clearFilter: '✕ Rensa',
   noRecordingsYet: 'Inga inspelningar ännu',
+  cancelSelection: 'Avbryt',
+  deleteSelected: 'Radera valda',
+  deleteRecordingPlural: 'Radera inspelningar?',
+  deleteAlsoFromMusicFolder: 'Vill du även radera ljudfilerna från telefonens Music/VoiceRecorder-mapp?',
+  deleteAppOnly: 'Bara i appen',
+  deleteAppAndDevice: 'Appen och telefonen',
 
   // ── Screen 4: Detail ────────────────────────────────────────────────────────
   editScreenTitle: 'Redigera',

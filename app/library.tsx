@@ -4,6 +4,7 @@ import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { deleteAudioFile } from 'save-to-music';
 import {
   Alert,
   FlatList,
@@ -57,6 +58,19 @@ export default function LibraryScreen() {
   const playerRef = useRef<AudioPlayer | null>(null);
   const [showAddKeyword, setShowAddKeyword] = useState(false);
   const [newKeywordLabel, setNewKeywordLabel] = useState('');
+
+  // ── Multi-select state ────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const isSelecting = selectedIds.size > 0;
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function cancelSelection() { setSelectedIds(new Set()); }
 
   function reload(q: string, tf: string | null) {
     setKeywords(getAllKeywords());
@@ -112,6 +126,7 @@ export default function LibraryScreen() {
           playerRef.current = null;
         }
         setPlayingId(null);
+        setSelectedIds(new Set());
         hidePlaybackNotification().catch(() => {});
       };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,39 +181,76 @@ export default function LibraryScreen() {
     router.push({ pathname: '/detail/[id]', params: { id: String(item.id), openEdit: '1' } });
   }
 
+  // ── Deletion helpers ──────────────────────────────────────────────────────────
+
+  async function deleteRecordingFiles(ids: number[], deleteFiles: boolean) {
+    for (const id of ids) {
+      const rec = recordings.find(r => r.id === id);
+      if (!rec) continue;
+      if (deleteFiles) {
+        try {
+          if (rec.filePath.startsWith('content://')) {
+            await deleteAudioFile(rec.filePath);
+          } else {
+            new File(rec.filePath).delete();
+          }
+        } catch (e) { console.warn('[Library] file delete error:', e); }
+      }
+      try { deleteRecording(id); } catch (e) { console.error('[Library] DB delete error:', e); }
+    }
+    cancelSelection();
+    reload(search, typeFilter);
+  }
+
+  function promptDelete(ids: number[]) {
+    const hasExternal = ids.some(id =>
+      recordings.find(r => r.id === id)?.filePath.startsWith('content://')
+    );
+    const title = ids.length === 1 ? S.deleteRecording : S.deleteRecordingPlural;
+
+    if (hasExternal) {
+      Alert.alert(title, S.deleteAlsoFromMusicFolder, [
+        { text: S.cancel, style: 'cancel' },
+        { text: S.deleteAppOnly, onPress: () => deleteRecordingFiles(ids, false) },
+        { text: S.deleteAppAndDevice, style: 'destructive', onPress: () => deleteRecordingFiles(ids, true) },
+      ]);
+    } else {
+      Alert.alert(title, S.deleteRecordingMessage, [
+        { text: S.cancel, style: 'cancel' },
+        { text: S.delete, style: 'destructive', onPress: () => deleteRecordingFiles(ids, true) },
+      ]);
+    }
+  }
+
   function handleDeleteFromSheet() {
     if (!sheetItem) return;
-    const item = sheetItem;
+    const id = sheetItem.id;
     setSheetItem(null);
-    Alert.alert(S.deleteRecording, S.deleteRecordingMessage, [
-      { text: S.cancel, style: 'cancel' },
-      {
-        text: S.delete,
-        style: 'destructive',
-        onPress: () => {
-          try { new File(item.filePath).delete(); } catch (e) { console.warn('[Library] file delete error:', e); }
-          try {
-            deleteRecording(item.id);
-            reload(search, typeFilter);
-          } catch (e) {
-            console.error('[Library] DB delete error:', e);
-            Alert.alert(S.error, S.couldNotDelete);
-          }
-        },
-      },
-    ]);
+    promptDelete([id]);
+  }
+
+  function handleMultiDelete() {
+    promptDelete([...selectedIds]);
   }
 
   function renderRow({ item }: { item: Recording }) {
-    // Long-press opens the bottom sheet menu
     const meta = buildMeta(item);
     const isPlaying = playingId === item.id;
+    const isSelected = selectedIds.has(item.id);
 
     return (
       <TouchableOpacity
-        style={[styles.row, { borderBottomColor: colors.icon + '33' }]}
+        style={[
+          styles.row,
+          { borderBottomColor: colors.icon + '33' },
+          isSelected && { backgroundColor: colors.icon + '18' },
+        ]}
         onPress={async () => {
-          // If this item is currently playing, hand off the position to Screen 4.
+          if (isSelecting) {
+            toggleSelect(item.id);
+            return;
+          }
+          // Navigate to detail, handing off playback position if playing
           let playFrom = 0;
           const wasPlaying = playingId === item.id;
           if (wasPlaying && playerRef.current) {
@@ -216,10 +268,20 @@ export default function LibraryScreen() {
             },
           });
         }}
-        onLongPress={() => setSheetItem(item)}
+        onLongPress={() => { toggleSelect(item.id); }}
         delayLongPress={400}
         activeOpacity={0.6}
       >
+        {/* Selection checkbox (selection mode only) */}
+        {isSelecting && (
+          <Ionicons
+            name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+            size={22}
+            color={isSelected ? colors.tint : colors.icon}
+            style={{ marginRight: 12 }}
+          />
+        )}
+
         {/* Left: name + meta */}
         <View style={styles.rowLeft}>
           <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>
@@ -230,26 +292,40 @@ export default function LibraryScreen() {
           </Text>
         </View>
 
-        {/* Right: play button (top) + duration (bottom) */}
-        <View style={styles.rowRight}>
-          <TouchableOpacity onPress={() => togglePlay(item)} hitSlop={10}>
-            <Ionicons
-              name={isPlaying ? 'pause' : 'play'}
-              size={20}
-              color="white"
-            />
-          </TouchableOpacity>
-          <Text style={[styles.duration, { color: colors.icon }]}>
-            {formatDuration(item.duration)}
-          </Text>
-        </View>
+        {/* Right: play button + duration (hidden in selection mode) */}
+        {!isSelecting && (
+          <View style={styles.rowRight}>
+            <TouchableOpacity onPress={() => togglePlay(item)} hitSlop={10}>
+              <Ionicons
+                name={isPlaying ? 'pause' : 'play'}
+                size={20}
+                color="white"
+              />
+            </TouchableOpacity>
+            <Text style={[styles.duration, { color: colors.icon }]}>
+              {formatDuration(item.duration)}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{
+      <Stack.Screen options={isSelecting ? {
+        headerLeft: () => (
+          <TouchableOpacity onPress={cancelSelection} hitSlop={8} style={{ padding: 4 }}>
+            <Text style={{ color: colors.tint, fontSize: 16 }}>{S.cancelSelection}</Text>
+          </TouchableOpacity>
+        ),
+        headerTitle: `${selectedIds.size} ${selectedIds.size === 1 ? 'vald' : 'valda'}`,
+        headerRight: () => (
+          <TouchableOpacity onPress={handleMultiDelete} hitSlop={8} style={{ padding: 4 }} disabled={selectedIds.size === 0}>
+            <Text style={{ color: '#e53935', fontSize: 16, fontWeight: '600' }}>{S.deleteSelected}</Text>
+          </TouchableOpacity>
+        ),
+      } : {
         headerRight: () => (
           <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
             <Ionicons name="settings-outline" size={22} color={colors.text} />
@@ -390,16 +466,18 @@ export default function LibraryScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Floating record button — navigates back to the recorder */}
-      <View style={[styles.fabContainer, { bottom: 24 + insets.bottom }]} pointerEvents="box-none">
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => { requestAutoRecord(); router.replace('/'); }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="mic" size={32} color="white" />
-        </TouchableOpacity>
-      </View>
+      {/* Floating record button — hidden in selection mode */}
+      {!isSelecting && (
+        <View style={[styles.fabContainer, { bottom: 24 + insets.bottom }]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => { requestAutoRecord(); router.replace('/'); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="mic" size={32} color="white" />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
