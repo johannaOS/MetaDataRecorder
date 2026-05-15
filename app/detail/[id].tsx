@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as Sentry from '@sentry/react-native';
 import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -139,6 +140,7 @@ export default function DetailScreen() {
           }
         }
       } catch (e) {
+        Sentry.captureException(e, { tags: { flow: 'createAsync', screen: 'detail' } });
         console.error('[Detail] createAsync error:', e);
       }
     })();
@@ -182,6 +184,7 @@ export default function DetailScreen() {
         await sound.playAsync();
       }
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'togglePlay', screen: 'detail' } });
       console.error('[Detail] togglePlay error:', e);
       Alert.alert(S.playbackError, String(e));
     }

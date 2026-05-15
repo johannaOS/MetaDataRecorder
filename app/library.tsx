@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as Sentry from '@sentry/react-native';
 import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
@@ -224,6 +225,7 @@ export default function LibraryScreen() {
       setPlayingId(item.id);
       showPlaybackNotification(item.name || S.appTitle).catch(() => {});
     } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'createAsync', uriType: item.filePath.startsWith('content://') ? 'content' : 'file' } });
       console.error('[Library] playback error for URI', item.filePath, ':', e);
       Alert.alert(S.playbackError, String(e));
     }
