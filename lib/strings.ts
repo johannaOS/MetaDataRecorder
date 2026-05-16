@@ -95,8 +95,8 @@ export const S = {
   alreadyOnPhone: 'Filen finns redan i Music/VoiceRecorder.',
 
   // ── Tags / labels ─────────────────────────────────────────────────────────────
-  tagsLabel: 'Etiketter',
-  addTagPlaceholder: 'Lägg till etikett…',
+  tagsLabel: 'Taggar',
+  addTagPlaceholder: 'Ny tagg…',
 
   // ── Playback controls ─────────────────────────────────────────────────────────
   skipBack: 'Hoppa tillbaka',

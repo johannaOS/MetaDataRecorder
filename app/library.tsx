@@ -3,7 +3,6 @@ import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import * as FileSystem from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,7 +25,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllUniqueTags, Keyword, Recording } from '@/lib/db';
+import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllUniqueTags, insertRecording, Keyword, Recording } from '@/lib/db';
+import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { requestAutoRecord } from '@/lib/autoRecord';
 import { S } from '@/lib/strings';
 
@@ -104,7 +104,7 @@ export default function LibraryScreen() {
         headerRight: () => (
           <View style={{ flexDirection: 'row', gap: 4 }}>
             <TouchableOpacity onPress={handleImportAudio} hitSlop={8} style={{ padding: 4 }}>
-              <Ionicons name="add-circle-outline" size={22} color={colors.text} />
+              <Ionicons name="folder-open-outline" size={22} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
               <Ionicons name="settings-outline" size={22} color={colors.text} />
@@ -145,21 +145,47 @@ export default function LibraryScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
-        copyToCacheDirectory: false,
+        // copyToCacheDirectory: true gives us a file:// URI directly — no manual
+        // copy needed, and it handles content:// URIs on Android reliably.
+        copyToCacheDirectory: true,
+        multiple: true,
       });
       if (result.canceled) return;
-      const asset = result.assets[0];
-      const ext = asset.name?.split('.').pop() ?? 'm4a';
-      const cacheUri = `${FileSystem.cacheDirectory}import-${Date.now()}.${ext}`;
-      await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
-      router.push({
-        pathname: '/metadata',
-        params: {
-          filePath: cacheUri,
-          duration: '0',
-          preFilledName: asset.name?.replace(/\.[^.]+$/, '') ?? '',
-        },
-      });
+      const { assets } = result;
+
+      if (assets.length === 1) {
+        // Single file → open metadata form so user can fill in details
+        const asset = assets[0];
+        router.push({
+          pathname: '/metadata',
+          params: {
+            filePath: asset.uri,
+            duration: '0',
+            preFilledName: asset.name?.replace(/\.[^.]+$/, '') ?? '',
+          },
+        });
+      } else {
+        // Multiple files → batch import with filename as title, then reload library
+        let count = 0;
+        for (const asset of assets) {
+          try {
+            const name = (asset.name?.replace(/\.[^.]+$/, '') ?? S.untitled).trim() || S.untitled;
+            const finalUri = await copyToPermanentStorage(asset.uri, name);
+            insertRecording({
+              name, filePath: finalUri, duration: 0,
+              createdAt: new Date().toISOString(),
+              ofAfter: '', origin: '', songType: '', performer: '', notes: '',
+              customData: '{}', tags: '[]',
+            });
+            count++;
+          } catch (e) {
+            Sentry.captureException(e, { tags: { flow: 'importAudioBatch' } });
+          }
+        }
+        reload(search, typeFilter, tagFilter);
+        if (count > 0) Alert.alert(`${count} ${count === 1 ? 'fil importerad' : 'filer importerade'}`, '');
+        else Alert.alert(S.error, S.couldNotImport);
+      }
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'importAudio' } });
       Alert.alert(S.error, S.couldNotImport);
@@ -481,31 +507,40 @@ export default function LibraryScreen() {
         )}
       </View>
 
-      {/* Tag filter chips — shown only if there are tags to filter by */}
+      {/* Tag filter row — same design as keyword filter, shown when tags exist */}
       {allTags.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.filterRow, { paddingTop: 0, paddingBottom: 2 }]}
-          style={{ maxHeight: 32 }}
-        >
-          {allTags.map(tag => {
-            const active = tagFilter === tag;
-            return (
-              <TouchableOpacity
-                key={tag}
-                onPress={() => setTagFilter(active ? null : tag)}
-                activeOpacity={0.6}
-              >
-                <View style={[styles.tagChip, active && { backgroundColor: colors.tint + '22' }]}>
-                  <Text style={[styles.tagChipText, { color: active ? colors.tint : colors.icon }]}>
-                    # {tag}
+        <View style={styles.filterWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+            style={styles.filterScroll}
+          >
+            <Text style={[styles.filterLabel, { color: colors.icon }]}>{S.tagsLabel}:</Text>
+            {allTags.map(tag => {
+              const active = tagFilter === tag;
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  onPress={() => setTagFilter(active ? null : tag)}
+                  activeOpacity={0.6}
+                >
+                  <Text style={[styles.filterWord, { color: colors.text }, active && styles.filterWordActive]}>
+                    {tag}
                   </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {tagFilter !== null && (
+            <TouchableOpacity
+              onPress={() => setTagFilter(null)}
+              style={[styles.clearBtn, { borderColor: colors.tint, backgroundColor: colors.tint + '18' }]}
+            >
+              <Text style={[styles.clearText, { color: colors.tint }]}>{S.clearFilter}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
       {/* Add keyword modal */}

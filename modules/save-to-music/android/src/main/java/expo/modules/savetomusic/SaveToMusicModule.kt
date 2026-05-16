@@ -1,6 +1,7 @@
 package expo.modules.savetomusic
 
 import android.content.ContentValues
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -37,7 +38,10 @@ class SaveToMusicModule : Module() {
   }
 
   private fun saveToVoiceRecorder(localUri: String, displayName: String): String {
-    val filePath = localUri.removePrefix("file://")
+    // Uri.parse().path decodes percent-encoded characters (e.g. %C3%A5 → å),
+    // so filenames with Swedish characters or special chars work correctly.
+    val filePath = Uri.parse(localUri).path
+      ?: throw IllegalArgumentException("Cannot extract path from URI: $localUri")
     val source = File(filePath)
     check(source.exists()) { "Source file not found: $filePath" }
 

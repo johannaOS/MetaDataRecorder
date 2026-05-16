@@ -363,7 +363,7 @@ export default function DetailScreen() {
                   {/* Save to Music folder — only shown for recordings still in app documents */}
                   {recording.filePath.startsWith('file://') && (
                     <TouchableOpacity onPress={handleSaveToPhone} style={styles.headerBtn} hitSlop={8} disabled={savingToPhone}>
-                      <Ionicons name="cloud-download-outline" size={22} color={colors.tint} />
+                      <Ionicons name="save-outline" size={22} color={colors.tint} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={startEditing} style={styles.headerBtn} hitSlop={8}>
@@ -463,14 +463,17 @@ export default function DetailScreen() {
                 <Text style={[styles.metaValue, { color: colors.text }]}>{formatDate(recording.createdAt)}</Text>
               </View>
 
-              {/* Tags */}
+              {/* Tags section */}
               {parseTags(recording.tags).length > 0 && (
-                <View style={styles.tagsRow}>
-                  {parseTags(recording.tags).map(tag => (
-                    <View key={tag} style={[styles.tag, { backgroundColor: colors.icon + '22' }]}>
-                      <Text style={[styles.tagText, { color: colors.icon }]}>{tag}</Text>
-                    </View>
-                  ))}
+                <View style={[styles.metaRow, { borderBottomColor: colors.icon + '22', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
+                  <Text style={[styles.metaLabel, { color: colors.icon }]}>{S.tagsLabel}</Text>
+                  <View style={styles.tagsRow}>
+                    {parseTags(recording.tags).map(tag => (
+                      <View key={tag} style={[styles.tag, { backgroundColor: colors.tint + '18' }]}>
+                        <Text style={[styles.tagText, { color: colors.tint }]}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               )}
             </View>
@@ -623,7 +626,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 2,
   },
-  slider: { width: '100%', height: 40 },
+  slider: { width: '100%', height: 52 },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
