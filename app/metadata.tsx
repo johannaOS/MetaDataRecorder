@@ -74,6 +74,8 @@ export default function MetadataScreen() {
   const [customValues, setCustomValues] = useState<Record<string, string>>(
     preFilledCustomData ? (() => { try { return JSON.parse(preFilledCustomData); } catch { return {}; } })() : {}
   );
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
   const [fieldConfigs] = useFieldConfig();
 
   // ── Intercept hardware back button to show discard confirmation (Bug 3) ───────
@@ -275,6 +277,7 @@ export default function MetadataScreen() {
         duration,
         createdAt: new Date().toISOString(),
         customData: JSON.stringify(customValues),
+        tags: JSON.stringify(tags),
       });
       Sentry.addBreadcrumb({ category: 'save', message: 'Recording saved successfully', level: 'info' });
       router.replace('/library');
@@ -438,6 +441,35 @@ export default function MetadataScreen() {
 
         {/* Dynamic fields */}
         {fieldConfigs.map((field, index) => renderField(field, isLive ? index + 1 : index))}
+
+        {/* Tags */}
+        <View style={{ marginTop: 24 }}>
+          <Text style={[styles.label, { color: colors.icon, marginBottom: 8 }]}>{S.tagsLabel}</Text>
+          {tags.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {tags.map(tag => (
+                <TouchableOpacity key={tag} onPress={() => setTags(prev => prev.filter(t => t !== tag))}
+                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: colors.tint + '22' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '500', color: colors.tint }}>{tag} ✕</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          <TextInput
+            style={[styles.input, { color: colors.text, borderColor: colors.icon + '55', backgroundColor: colors.background }]}
+            placeholder={S.addTagPlaceholder}
+            placeholderTextColor={colors.icon}
+            value={tagInput}
+            onChangeText={setTagInput}
+            onSubmitEditing={() => {
+              const t = tagInput.trim();
+              if (t && !tags.includes(t)) setTags(prev => [...prev, t]);
+              setTagInput('');
+            }}
+            returnKeyType="done"
+            blurOnSubmit={false}
+          />
+        </View>
 
       </ScrollView>
 

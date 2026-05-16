@@ -87,6 +87,21 @@ export const S = {
   audioFilesNote: 'Obs: Ljudfiler lagras separat och påverkas inte av säkerhetskopiering eller återställning.',
   restoreSuccess: 'Återställningen slutförd',
 
+  // ── Import / save-to-phone ───────────────────────────────────────────────────
+  importAudio: 'Importera ljud',
+  couldNotImport: 'Kunde inte importera filen.',
+  saveToPhone: 'Spara till Music-mapp',
+  savedToPhone: 'Sparad till Music/VoiceRecorder',
+  alreadyOnPhone: 'Filen finns redan i Music/VoiceRecorder.',
+
+  // ── Tags / labels ─────────────────────────────────────────────────────────────
+  tagsLabel: 'Etiketter',
+  addTagPlaceholder: 'Lägg till etikett…',
+
+  // ── Playback controls ─────────────────────────────────────────────────────────
+  skipBack: 'Hoppa tillbaka',
+  skipForward: 'Hoppa framåt',
+
   // ── Alerts ──────────────────────────────────────────────────────────────────
   permissionRequired: 'Behörighet krävs',
   microphonePermissionMessage: 'Mikrofonåtkomst krävs för att spela in ljud.',

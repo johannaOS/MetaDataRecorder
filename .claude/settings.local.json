@@ -39,7 +39,11 @@
       "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const idx=src.indexOf\\('FileInfo'\\); console.log\\(src.substring\\(idx, idx+500\\)\\)\")",
       "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const m=src.match\\(/type FileInfo[^;]+;/gs\\); console.log\\(m?.[0]?.substring\\(0,500\\)\\)\")",
       "Bash(node -e \"const f=require\\('fs'\\); const src=f.readFileSync\\('./node_modules/expo-file-system/build/ExpoFileSystem.types.d.ts','utf8'\\); const idx=src.indexOf\\('type FileInfo'\\); console.log\\(src.substring\\(idx, idx+600\\)\\)\")",
-      "PowerShell(Get-Content *)"
+      "PowerShell(Get-Content *)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebFetch(domain:gist.github.com)"
     ]
   }
 }

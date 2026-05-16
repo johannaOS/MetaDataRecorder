@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -24,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, Keyword, Recording } from '@/lib/db';
+import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllUniqueTags, Keyword, Recording } from '@/lib/db';
 import { requestAutoRecord } from '@/lib/autoRecord';
 import { S } from '@/lib/strings';
 
@@ -54,8 +56,10 @@ export default function LibraryScreen() {
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [sheetItem, setSheetItem] = useState<Recording | null>(null);
   const playerRef = useRef<Audio.Sound | null>(null);
@@ -98,9 +102,14 @@ export default function LibraryScreen() {
         headerLeft: undefined,
         headerTitle: undefined,
         headerRight: () => (
-          <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
-            <Ionicons name="settings-outline" size={22} color={colors.text} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <TouchableOpacity onPress={handleImportAudio} hitSlop={8} style={{ padding: 4 }}>
+              <Ionicons name="add-circle-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={8} style={{ padding: 4 }}>
+              <Ionicons name="settings-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         ),
       });
     }
@@ -119,18 +128,42 @@ export default function LibraryScreen() {
     }, [isSelecting])
   );
 
-  function reload(q: string, tf: string | null) {
+  function reload(q: string, tf: string | null, tagF: string | null = tagFilter) {
     setKeywords(getAllKeywords());
-    const results = getAllRecordings(q || undefined);
-    // Fix 14: filter keyword matches songType OR recording title
-    setRecordings(
-      tf
-        ? results.filter(r =>
-            r.songType === tf ||
-            r.name.toLowerCase().includes(tf.toLowerCase())
-          )
-        : results
-    );
+    setAllTags(getAllUniqueTags());
+    let results = getAllRecordings(q || undefined);
+    if (tf) results = results.filter(r => r.songType === tf || r.name.toLowerCase().includes(tf.toLowerCase()));
+    if (tagF) {
+      results = results.filter(r => {
+        try { return (JSON.parse(r.tags || '[]') as string[]).includes(tagF); } catch { return false; }
+      });
+    }
+    setRecordings(results);
+  }
+
+  async function handleImportAudio() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['audio/*'],
+        copyToCacheDirectory: false,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const ext = asset.name?.split('.').pop() ?? 'm4a';
+      const cacheUri = `${FileSystem.cacheDirectory}import-${Date.now()}.${ext}`;
+      await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
+      router.push({
+        pathname: '/metadata',
+        params: {
+          filePath: cacheUri,
+          duration: '0',
+          preFilledName: asset.name?.replace(/\.[^.]+$/, '') ?? '',
+        },
+      });
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'importAudio' } });
+      Alert.alert(S.error, S.couldNotImport);
+    }
   }
 
   function handleAddKeyword() {
@@ -159,8 +192,9 @@ export default function LibraryScreen() {
 
   // Reload when search / filter change
   useEffect(() => {
-    reload(search, typeFilter);
-  }, [search, typeFilter]);
+    reload(search, typeFilter, tagFilter);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, typeFilter, tagFilter]);
 
   // Reload when navigating back to this screen; clean up audio on leave
   useFocusEffect(
@@ -437,15 +471,42 @@ export default function LibraryScreen() {
             <Ionicons name="add" size={16} color={colors.icon} />
           </TouchableOpacity>
         </ScrollView>
-        {typeFilter !== null && (
+        {(typeFilter !== null || tagFilter !== null) && (
           <TouchableOpacity
-            onPress={() => setTypeFilter(null)}
+            onPress={() => { setTypeFilter(null); setTagFilter(null); }}
             style={[styles.clearBtn, { borderColor: colors.tint, backgroundColor: colors.tint + '18' }]}
           >
             <Text style={[styles.clearText, { color: colors.tint }]}>{S.clearFilter}</Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Tag filter chips — shown only if there are tags to filter by */}
+      {allTags.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.filterRow, { paddingTop: 0, paddingBottom: 2 }]}
+          style={{ maxHeight: 32 }}
+        >
+          {allTags.map(tag => {
+            const active = tagFilter === tag;
+            return (
+              <TouchableOpacity
+                key={tag}
+                onPress={() => setTagFilter(active ? null : tag)}
+                activeOpacity={0.6}
+              >
+                <View style={[styles.tagChip, active && { backgroundColor: colors.tint + '22' }]}>
+                  <Text style={[styles.tagChipText, { color: active ? colors.tint : colors.icon }]}>
+                    # {tag}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* Add keyword modal */}
       <Modal visible={showAddKeyword} transparent animationType="fade" onRequestClose={() => setShowAddKeyword(false)}>
@@ -593,6 +654,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
+  tagChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  tagChipText: { fontSize: 13, fontWeight: '500' },
 
   row: {
     flexDirection: 'row',

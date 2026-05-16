@@ -1,0 +1,1 @@
+ers46736ProjectsMetaDataRecorder grep -i -e secret -e token -e password -e key -e dsn -- \*.ts \*.tsx \*.json

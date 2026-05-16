@@ -22,8 +22,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { deleteRecording, getRecordingById, parseCustomData, Recording, updateRecording } from '@/lib/db';
+import { deleteRecording, getAllUniqueTags, getRecordingById, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
+import { saveAudioFile } from 'save-to-music';
+import { generateSafeFilename } from '@/lib/filename';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
@@ -51,6 +53,7 @@ export default function DetailScreen() {
 
   const [recording, setRecording] = useState<Recording | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [savingToPhone, setSavingToPhone] = useState(false);
 
   // Edit field state
   const [editName, setEditName] = useState('');
@@ -60,6 +63,9 @@ export default function DetailScreen() {
   const [editPerformer, setEditPerformer] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editCustomValues, setEditCustomValues] = useState<Record<string, string>>({});
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [fieldConfigs] = useFieldConfig();
 
   // Player — expo-av Sound does not auto-pause on Activity.onPause(), enabling
@@ -219,7 +225,39 @@ export default function DetailScreen() {
     setEditPerformer(recording.performer);
     setEditNotes(recording.notes);
     setEditCustomValues(parseCustomData(recording.customData));
+    setEditTags(parseTags(recording.tags));
+    setAllTags(getAllUniqueTags());
+    setTagInput('');
     setIsEditing(true);
+  }
+
+  function addTag(tag: string) {
+    const t = tag.trim();
+    if (!t || editTags.includes(t)) return;
+    setEditTags(prev => [...prev, t]);
+    setTagInput('');
+  }
+
+  function removeTag(tag: string) {
+    setEditTags(prev => prev.filter(t => t !== tag));
+  }
+
+  async function handleSaveToPhone() {
+    if (!recording || !recording.filePath.startsWith('file://')) return;
+    setSavingToPhone(true);
+    try {
+      const displayName = generateSafeFilename(recording.name || S.untitled, []);
+      const contentUri = await saveAudioFile(recording.filePath, displayName);
+      if (!contentUri) throw new Error('saveAudioFile returned null');
+      updateRecording(recording.id, { filePath: contentUri });
+      setRecording(r => r ? { ...r, filePath: contentUri } : r);
+      Alert.alert(S.savedToPhone, 'Music/VoiceRecorder/' + displayName);
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'saveToPhone' } });
+      Alert.alert(S.error, S.couldNotSaveRecording + '\n' + String(e));
+    } finally {
+      setSavingToPhone(false);
+    }
   }
 
   function saveEditing() {
@@ -233,6 +271,7 @@ export default function DetailScreen() {
         performer: editPerformer.trim(),
         notes: editNotes.trim(),
         customData: JSON.stringify(editCustomValues),
+        tags: JSON.stringify(editTags),
       });
       if (openEdit === '1') {
         router.back();
@@ -321,6 +360,12 @@ export default function DetailScreen() {
                 </TouchableOpacity>
               ) : (
                 <>
+                  {/* Save to Music folder — only shown for recordings still in app documents */}
+                  {recording.filePath.startsWith('file://') && (
+                    <TouchableOpacity onPress={handleSaveToPhone} style={styles.headerBtn} hitSlop={8} disabled={savingToPhone}>
+                      <Ionicons name="cloud-download-outline" size={22} color={colors.tint} />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={startEditing} style={styles.headerBtn} hitSlop={8}>
                     <Ionicons name="pencil-outline" size={22} color={colors.text} />
                   </TouchableOpacity>
@@ -344,10 +389,15 @@ export default function DetailScreen() {
         >
           {/* ── Player ─────────────────────────────────────────────────────── */}
           <View style={[styles.player, { borderBottomColor: colors.icon + '28' }]}>
-            <View style={styles.timeRow}>
-              <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(positionMs)}</Text>
-              <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
-            </View>
+            {/* Time row — large centred time while scrubbing, start/end otherwise */}
+            {seekPositionMs !== null ? (
+              <Text style={[styles.seekTime, { color: colors.text }]}>{formatMs(positionMs)}</Text>
+            ) : (
+              <View style={styles.timeRow}>
+                <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(positionMs)}</Text>
+                <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
+              </View>
+            )}
             <Slider
               style={styles.slider}
               minimumValue={0}
@@ -357,15 +407,29 @@ export default function DetailScreen() {
               maximumTrackTintColor={colors.icon + '44'}
               thumbTintColor={colors.text}
               onSlidingStart={onSeekStart}
+              onValueChange={(v) => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
               onSlidingComplete={onSeekComplete}
             />
-            <TouchableOpacity onPress={togglePlay} style={styles.playBtn} activeOpacity={0.7}>
-              <Ionicons
-                name={isPlaying ? 'pause-circle' : 'play-circle'}
-                size={68}
-                color={colors.text}
-              />
-            </TouchableOpacity>
+            {/* Controls row: skip back · play/pause · skip forward */}
+            <View style={styles.controls}>
+              <TouchableOpacity
+                onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
+                hitSlop={12}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="play-back" size={30} color={colors.icon} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={togglePlay} style={styles.playBtn} activeOpacity={0.7}>
+                <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={68} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => soundRef.current?.setPositionAsync(Math.min(durationMs, positionMs + 5000)).catch(() => {})}
+                hitSlop={12}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="play-forward" size={30} color={colors.icon} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── Metadata display ───────────────────────────────────────────── */}
@@ -398,6 +462,17 @@ export default function DetailScreen() {
                 <Text style={[styles.metaLabel, { color: colors.icon }]}>{S.fieldRecorded}</Text>
                 <Text style={[styles.metaValue, { color: colors.text }]}>{formatDate(recording.createdAt)}</Text>
               </View>
+
+              {/* Tags */}
+              {parseTags(recording.tags).length > 0 && (
+                <View style={styles.tagsRow}>
+                  {parseTags(recording.tags).map(tag => (
+                    <View key={tag} style={[styles.tag, { backgroundColor: colors.icon + '22' }]}>
+                      <Text style={[styles.tagText, { color: colors.icon }]}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           ) : (
             /* ── Edit form ─────────────────────────────────────────────────── */
@@ -459,6 +534,40 @@ export default function DetailScreen() {
                 );
               })}
 
+              {/* Tags editing */}
+              <View style={styles.editField}>
+                <Text style={[styles.editLabel, { color: colors.icon }]}>{S.tagsLabel}</Text>
+                <View style={styles.tagsRow}>
+                  {editTags.map(tag => (
+                    <TouchableOpacity key={tag} onPress={() => removeTag(tag)}
+                      style={[styles.tag, styles.tagRemovable, { backgroundColor: colors.tint + '22' }]}>
+                      <Text style={[styles.tagText, { color: colors.tint }]}>{tag} ✕</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {/* Suggestions from existing tags */}
+                {allTags.filter(t => !editTags.includes(t)).length > 0 && (
+                  <View style={styles.tagsRow}>
+                    {allTags.filter(t => !editTags.includes(t)).map(tag => (
+                      <TouchableOpacity key={tag} onPress={() => addTag(tag)}
+                        style={[styles.tag, { backgroundColor: colors.icon + '18' }]}>
+                        <Text style={[styles.tagText, { color: colors.icon }]}>+ {tag}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <TextInput
+                  style={[styles.editInput, { color: colors.text, borderColor: colors.icon + '55', backgroundColor: colors.background }]}
+                  placeholder={S.addTagPlaceholder}
+                  placeholderTextColor={colors.icon}
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  onSubmitEditing={() => addTag(tagInput)}
+                  returnKeyType="done"
+                  blurOnSubmit={false}
+                />
+              </View>
+
               <View style={styles.editActions}>
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: SAVE_COLOR }]}
@@ -507,8 +616,36 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   timeText: { fontSize: 13, fontVariant: ['tabular-nums'] },
+  seekTime: {
+    fontSize: 28,
+    fontWeight: '200',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    marginBottom: 2,
+  },
   slider: { width: '100%', height: 40 },
-  playBtn: { marginTop: 4 },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 28,
+    marginTop: 4,
+  },
+  playBtn: {},
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  tag: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  tagRemovable: {},
+  tagText: { fontSize: 13, fontWeight: '500' },
 
   // Metadata display
   section: { paddingHorizontal: 20 },

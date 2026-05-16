@@ -14,6 +14,7 @@ export interface Recording {
   duration: number;
   createdAt: string;
   customData: string; // JSON: Record<string, string>
+  tags: string;       // JSON: string[]
 }
 
 // ── FieldConfig ───────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ export function initDb() {
   try { db.execSync("ALTER TABLE recordings ADD COLUMN ofAfter TEXT NOT NULL DEFAULT ''"); } catch {}
   try { db.execSync("ALTER TABLE recordings ADD COLUMN origin TEXT NOT NULL DEFAULT ''"); } catch {}
   try { db.execSync("ALTER TABLE recordings ADD COLUMN customData TEXT NOT NULL DEFAULT '{}'"); } catch {}
+  try { db.execSync("ALTER TABLE recordings ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'"); } catch {}
 
   // Seed default filter keywords
   DEFAULT_KEYWORDS.forEach((label, i) => {
@@ -111,11 +113,11 @@ export function initDb() {
 export function insertRecording(data: Omit<Recording, 'id'>): number {
   const result = db.runSync(
     `INSERT INTO recordings
-       (name, ofAfter, origin, songType, performer, notes, filePath, duration, createdAt, customData)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (name, ofAfter, origin, songType, performer, notes, filePath, duration, createdAt, customData, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     data.name, data.ofAfter, data.origin, data.songType,
     data.performer, data.notes, data.filePath, data.duration,
-    data.createdAt, data.customData ?? '{}'
+    data.createdAt, data.customData ?? '{}', data.tags ?? '[]'
   );
   return result.lastInsertRowId;
 }
@@ -144,11 +146,29 @@ export function getRecordingById(id: number): Recording | null {
 
 export function updateRecording(
   id: number,
-  data: Partial<Pick<Recording, 'name' | 'ofAfter' | 'origin' | 'songType' | 'performer' | 'notes' | 'customData'>>
+  data: Partial<Pick<Recording, 'name' | 'ofAfter' | 'origin' | 'songType' | 'performer' | 'notes' | 'customData' | 'filePath' | 'tags'>>
 ) {
   const fieldsList = Object.keys(data).map(k => `${k} = ?`).join(', ');
   const values = Object.values(data);
   db.runSync(`UPDATE recordings SET ${fieldsList} WHERE id = ?`, ...values, id);
+}
+
+export function getAllUniqueTags(): string[] {
+  const rows = db.getAllSync(
+    "SELECT tags FROM recordings WHERE tags != '[]' AND tags != ''"
+  ) as { tags: string }[];
+  const tagSet = new Set<string>();
+  for (const row of rows) {
+    try {
+      const arr: string[] = JSON.parse(row.tags);
+      arr.forEach(t => { if (t) tagSet.add(t); });
+    } catch {}
+  }
+  return [...tagSet].sort();
+}
+
+export function parseTags(raw: string | undefined): string[] {
+  try { return JSON.parse(raw || '[]'); } catch { return []; }
 }
 
 export function deleteRecording(id: number) {

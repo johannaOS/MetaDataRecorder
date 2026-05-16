@@ -1,1 +1,134 @@
-Fix four bugs in the app. Bug 1 - Screen lock stops recording: the recording stops when the screen locks. This worked in a previous build. The fix is to ensure setAudioModeAsync with allowsBackgroundRecording true is called correctly before recording starts on Android, and verify the expo-audio config plugin has enableBackgroundRecording true in app.json. Also check if there is an AppState handler that is incorrectly pausing or stopping recording when the app state changes to background or inactive. Bug 2 - Files not saved to Music/VoiceRecorder folder: recordings appear in the library and play back correctly, so the temp file in cache exists, but saveRecording.ts is failing to copy it to the Music folder. Read lib/saveRecording.ts carefully and fix the file copy logic. The recorder URI from expo-audio is a file:// URI in the app cache. The save function must copy it to the correct destination. Add console.log statements at each step so failures are visible in logs. Bug 3 - Timer does not catch up when returning to app after background recording: elapsed time shown on Screen 1 does not update to reflect actual recording duration after returning from background. Since recorderState.durationMillis is the source of truth, the timer display should always show the current recorderState.durationMillis divided by 1000, which will automatically reflect the correct elapsed time when the component re-renders on foreground. Verify this is wired correctly. Bug 4 - Library shows wrong duration: the duration saved to the database after stopping is incorrect. After recorder.stop() resolves, use recorderState.durationMillis as the duration, or read the actual file duration from the saved file using expo-av or expo-file-system. Run all tests and confirm they pass. 
+here's the repro:
+1. record new audiofile and save
+2. in library screen, press play symbol (inline playback)
+expected: audio playback
+actual: a long error message, I don't know if you see it in the logs?
+
+I pressed the play button twice. here's the log:
+PS C:\Users\46736\Projects\MetaDataRecorder> adb logcat -c
+PS C:\Users\46736\Projects\MetaDataRecorder>   adb logcat -s ReactNativeJS:V MediaRecorder:V AudioFlinger:V ActivityManager:V
+--------- beginning of system
+05-15 13:20:36.656  1554  1761 I ActivityManager: Changes in 10212 8 to 10, 128 to 0
+05-15 13:20:36.829  1554  3865 D ActivityManager: starting Active launch
+05-15 13:20:37.813  1554  5349 D ActivityManager: starting Active launch
+05-15 13:20:37.841  1554  1607 I ActivityManager: Start proc 6604:com.johannaos.VoiceRecorder/u0a557 for activelaunch {com.johannaos.VoiceRecorder/com.johannaos.VoiceRecorder.MainActivity}
+05-15 13:20:37.841  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
+05-15 13:20:37.991  1554  2416 I ActivityManager: Changes in 10557 19 to 2, 0 to 255
+--------- beginning of main
+05-15 13:20:38.181  6604  6638 I ReactNativeJS: Running "main"
+05-15 13:20:38.186  6604  6638 W ReactNativeJS: [expo-av]: Expo AV has been deprecated and will be removed in SDK 54. Use the `expo-audio` and `expo-video` packages to replace the required functionality.
+05-15 13:20:38.464  6604  6638 I ReactNativeJS: [Layout] expo-av audio mode set for playback
+05-15 13:20:38.470  6604  6638 I ReactNativeJS: [Layout] expo-audio mode set for background playback
+05-15 13:20:38.471  6604  6638 I ReactNativeJS: [Layout] requesting Notifications permission…
+05-15 13:20:38.529  1554  1600 I ActivityManager: Changes in 10137 2 to 5, 255 to 184
+05-15 13:20:38.554  1554  1607 I ActivityManager: Start proc 6685:com.google.android.permissioncontroller/u0a287 for next-top-activity {com.google.android.permissioncontroller/com.android.permissioncontroller.permission.ui.GrantPermissionsActivity}
+05-15 13:20:38.556  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
+05-15 13:20:38.570  1554  5349 I ActivityManager: Changes in 10287 19 to 2, 0 to 255
+05-15 13:20:38.892  6604  6638 I ReactNativeJS: [Layout] Notifications permission done
+05-15 13:20:38.893  6604  6638 I ReactNativeJS: [Layout] initialising recording notification channel…
+05-15 13:20:38.902  1554  1600 I ActivityManager: Killing 1008:com.samsung.android.dqagent/1000 (adj 985): empty #33
+05-15 13:20:38.903  1554  1600 I ActivityManager: Changes in 10287 2 to 19, 255 to 0
+05-15 13:20:38.913  6604  6638 I ReactNativeJS: [Layout] recording notification channel ready
+05-15 13:20:39.919  1554  1600 I ActivityManager: Changes in 10287 19 to 2, 0 to 255
+05-15 13:20:39.974  6604  6638 I ReactNativeJS: '[Recorder] setting audio mode — platform:', 'android'
+05-15 13:20:39.985  6604  6646 D MediaRecorder: Constructor MediaRecorder
+05-15 13:20:39.994  1554  1600 I ActivityManager: Changes in 10287 2 to 19, 255 to 0
+05-15 13:20:40.029  6604  6646 I MediaRecorder: prepare
+05-15 13:20:40.038  6604  6646 I MediaRecorder: prepare elapsed time : 8 ms
+05-15 13:20:40.072  1243  6775 I AudioFlinger: AudioFlinger's thread 0xb400006fc9f1d918 tid=6775 ready to run
+05-15 13:20:40.082  1243  1243 W AudioFlinger: acquireAudioSessionId() unknown client 6604 for session 56921
+05-15 13:20:40.133  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_=0
+05-15 13:20:40.138  6604  6638 I ReactNativeJS: [Recorder] recording started
+05-15 13:20:40.165  1554  2400 I ActivityManager: Background started FGS: Allowed [callingPackage: com.johannaos.VoiceRecorder; callingUid: 10557; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { act=app.notifee.core.ForegroundService.START xflg=0x4 cmp=com.johannaos.VoiceRecorder/app.notifee.core.ForegroundService (has extras) }; code:PROC_STATE_TOP; tempAllowListReason:<,reasonCode:SYSTEM_ALLOW_LISTED,duration:9223372036854775807,callingUid:-1>; allowWiu:12; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+05-15 13:20:42.361  1554  1802 D ActivityManager: Received SERVICE intent 0x8b46f0f Key{startService pkg=com.google.android.gms/com.google.android.gms.auth_authzen__phone intent=act=com.google.android.gms.auth.authzen.cryptauth.DEVICE_STATE_CHECK_DELAY_COMPLETE cat=[targeted_intent_op_prefix:.auth.authzen.cryptauth.DeviceStateSyncManager$CheckStateEventIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.GmsIntentOperationService flags=0x2000000 u=0} requestCode=0 from uid 1000
+05-15 13:20:50.281  1554  1802 D ActivityManager: Received BROADCAST intent 0xb8346e2 Key{broadcastIntent pkg=com.google.android.gms/com.google.android.gms.location_base intent=act=com.google.android.location.ALARM_WAKEUP_ACTIVITY_DETECTION xflg=0x4 pkg=com.google.android.gms flags=0x4000000 u=0} requestCode=0 sent=0 from uid 1000
+05-15 13:20:51.401  6604  6638 I ReactNativeJS: '[Recorder] stopping — wall-clock duration:', 11, 's'
+05-15 13:20:51.476  6604  6646 E MediaRecorder: stop called in an invalid state: 1
+05-15 13:20:51.487  1243 21941 W AudioFlinger: session id 56921 not found for pid 6604
+05-15 13:20:51.491  6604  6638 I ReactNativeJS: '[Recorder] stopped — URI:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Audio/recording-7da8d6a0-2096-47cf-a89c-05eaa78353d9.m4a'
+05-15 13:20:51.602  1554  1600 I ActivityManager: Changes in 10190 7 to 5, 128 to 255
+05-15 13:20:51.694  1554  2400 I ActivityManager: Changes in 10108 19 to 5, 0 to 144
+05-15 13:20:54.426  1243  3127 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:20:55.993  1243  3127 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:20:56.058  6604  6638 I ReactNativeJS: '[Save] copyToPermanentStorage — title:', 'Test', 'cacheUri:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Audio/recording-7da8d6a0-2096-47cf-a89c-05eaa78353d9.m4a'
+05-15 13:20:56.060  6604  6638 I ReactNativeJS: '[Save:Tier1] native MediaStore save — displayName:', 'Test.m4a'
+05-15 13:20:56.227  1554  3810 I ActivityManager: Changes in 99701 19 to 8, 0 to 128
+05-15 13:20:56.250  1554  1573 I ActivityManager: Changes in 99701 8 to 10, 128 to 0
+05-15 13:20:56.292  6604  6638 I ReactNativeJS: '[Save:Tier1] saved:', 'content://media/external/audio/media/1000052091'
+05-15 13:20:56.295  6604  6638 I ReactNativeJS: '[Save] saved via Tier 1 (Music/VoiceRecorder):', 'content://media/external/audio/media/1000052091'
+05-15 13:20:56.714  1554  1600 I ActivityManager: Changes in 10190 5 to 7, 255 to 128
+05-15 13:20:56.714  1554  1600 I ActivityManager: Changes in 10108 5 to 7, 144 to 128
+05-15 13:20:57.730  1554  1605 I ActivityManager: Changes in 10108 7 to 15, 128 to 0
+05-15 13:20:58.259  6604  6638 E ReactNativeJS: '[Library] playback error for URI', 'content://media/external/audio/media/1000052091', ':', [Error: Exception in HostFunction: java.lang.IllegalArgumentException: Invalid URI: content://media/external/audio/media/1000052091
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at android.provider.DocumentsContract.getTreeDocumentId(DocumentsContract.java:1294)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at androidx.core.provider.DocumentsContractCompat$DocumentsContractApi21Impl.getTreeDocumentId(DocumentsContractCompat.java:239)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at androidx.core.provider.DocumentsContractCompat.getTreeDocumentId(DocumentsContractCompat.java:105)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at androidx.documentfile.provider.DocumentFile.fromTreeUri(DocumentFile.java:133)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.unifiedfile.SAFDocumentFile.getDocumentFile(SAFDocumentFile.kt:20)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.unifiedfile.SAFDocumentFile.isFile(SAFDocumentFile.kt:31)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.FileSystemFile.getExists(FileSystemFile.kt:28)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.FileSystemModule$definition$lambda$62$lambda$38$$inlined$Property$1.invoke(PropertyComponentBuilder.kt:47)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.FileSystemModule$definition$lambda$62$lambda$38$$inlined$Property$1.invoke(PropertyComponentBuilder.kt:46)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.functions.SyncFunctionComponent.callUserImplementation(SyncFunctionComponent.kt:18)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.objects.PropertyComponent.attachToJSObject$lambda$0(PropertyComponent.kt:31)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.objects.PropertyComponent.$r8$lambda$6iLcJ3HumQZS0quTKRT-eCaJ9Og(Unknown Source:0)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.objects.PropertyComponent$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at com.facebook.jni.NativeRunnable.run(Native Method)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at android.os.Handler.handleCallback(Handler.java:995)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at android.os.Handler.dispatchMessage(Handler.java:103)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadHandler.dispatchMessage(MessageQueueThreadHandler.kt:21)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at android.os.Looper.loopOnce(Looper.java:273)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at android.os.Looper.loop(Looper.java:363)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.startNewBackgroundThread$lambda$1(MessageQueueThreadImpl.kt:175)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.$r8$lambda$ldnZnqelhYFctGaUKkOKYj5rxo4(Unknown Source:0)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion$$ExternalSyntheticLambda0.run(D8$$SyntheticClass:0)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS:         at java.lang.Thread.run(Thread.java:1119)
+05-15 13:20:58.259  6604  6638 E ReactNativeJS: ]
+05-15 13:20:58.352  1243 18553 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:20:58.504  1243 18553 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:20:58.747  1554  1802 D ActivityManager: Received BROADCAST intent 0xb8346e2 Key{broadcastIntent pkg=com.google.android.gms/com.google.android.gms.location_base intent=act=com.google.android.location.ALARM_WAKEUP_ACTIVITY_DETECTION xflg=0x4 pkg=com.google.android.gms flags=0x4000000 u=0} requestCode=0 sent=0 from uid 1000
+05-15 13:21:02.236  1554  5898 D ActivityManager: Received SERVICE intent 0x35dda82 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.gms.location.util.nlp.RESULT cat=[targeted_intent_op_prefix:.location.util.nlp.NlpInternalApi$NlpReceiverIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x2000000 u=0} requestCode=1 from uid 10243
+05-15 13:21:02.245  1554  5898 D ActivityManager: Received SERVICE intent 0x98d3f64 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.location.internal.action.FLP_AR_RESULT xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/com.google.android.location.internal.PendingIntentCallbackService flags=0x2000000 u=0} requestCode=0 from uid 10243
+05-15 13:21:02.259  1554  5898 D ActivityManager: Received SERVICE intent 0x1a674f7 Key{startService pkg=com.google.android.gms/com.google.android.gms.location_base intent=act=com.google.android.location.internal.action.AR_TRANSITION_RESULT xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/com.google.android.location.internal.PendingIntentCallbackService flags=0x2000000 u=0} requestCode=0 from uid 10243
+05-15 13:21:02.268  1554  3809 D ActivityManager: Received BROADCAST intent 0x2fddfb8 Key{broadcastIntent pkg=com.google.android.gms/com.google.android.gms.personalsafety intent=act=com.google.android.gms.personalsafety.scanners.ACTION_ACTIVITY_DETECTED xflg=0x4 pkg=com.google.android.gms flags=0x2000000 u=0} requestCode=0 sent=0 from uid 10243
+05-15 13:21:02.274  1554  3809 D ActivityManager: Received SERVICE intent 0x75c3bd6 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.gms.location.util.nlp.RESULT cat=[targeted_intent_op_prefix:.location.util.nlp.NlpInternalApi$NlpReceiverIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x2000000 u=0} requestCode=2 from uid 10243
+05-15 13:21:06.354  1554  1607 I ActivityManager: Start proc 6960:com.google.android.apps.photos/u0a320 for service {com.google.android.apps.photos/com.google.android.libraries.social.mediamonitor.MediaMonitorJobSchedulerService}
+05-15 13:21:06.354  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
+05-15 13:21:06.544  1554  2701 I ActivityManager: Changes in 10320 19 to 8, 0 to 128
+05-15 13:21:06.767  1243 18553 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:21:06.891  1554  2701 I ActivityManager: Changes in 10320 8 to 10, 128 to 0
+05-15 13:21:06.901  1554  2394 I ActivityManager: Killing 28677:com.sec.android.app.soundalive/u0a132 (adj 985): empty #33
+05-15 13:21:06.916  1243 18553 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:21:06.943  1243  3127 I AudioFlinger: removeDlbCodecCallback pid:28677 type:-1
+05-15 13:21:09.646  6604  6638 E ReactNativeJS: '[Library] playback error for URI', 'content://media/external/audio/media/1000052091', ':', [Error: Exception in HostFunction: java.lang.IllegalArgumentException: Invalid URI: content://media/external/audio/media/1000052091
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at android.provider.DocumentsContract.getTreeDocumentId(DocumentsContract.java:1294)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at androidx.core.provider.DocumentsContractCompat$DocumentsContractApi21Impl.getTreeDocumentId(DocumentsContractCompat.java:239)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at androidx.core.provider.DocumentsContractCompat.getTreeDocumentId(DocumentsContractCompat.java:105)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at androidx.documentfile.provider.DocumentFile.fromTreeUri(DocumentFile.java:133)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.unifiedfile.SAFDocumentFile.getDocumentFile(SAFDocumentFile.kt:20)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.unifiedfile.SAFDocumentFile.isFile(SAFDocumentFile.kt:31)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.FileSystemFile.getExists(FileSystemFile.kt:28)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.FileSystemModule$definition$lambda$62$lambda$38$$inlined$Property$1.invoke(PropertyComponentBuilder.kt:47)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.filesystem.FileSystemModule$definition$lambda$62$lambda$38$$inlined$Property$1.invoke(PropertyComponentBuilder.kt:46)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.functions.SyncFunctionComponent.callUserImplementation(SyncFunctionComponent.kt:18)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.objects.PropertyComponent.attachToJSObject$lambda$0(PropertyComponent.kt:31)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.objects.PropertyComponent.$r8$lambda$6iLcJ3HumQZS0quTKRT-eCaJ9Og(Unknown Source:0)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at expo.modules.kotlin.objects.PropertyComponent$$ExternalSyntheticLambda0.invoke(D8$$SyntheticClass:0)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at com.facebook.jni.NativeRunnable.run(Native Method)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at android.os.Handler.handleCallback(Handler.java:995)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at android.os.Handler.dispatchMessage(Handler.java:103)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadHandler.dispatchMessage(MessageQueueThreadHandler.kt:21)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at android.os.Looper.loopOnce(Looper.java:273)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at android.os.Looper.loop(Looper.java:363)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.startNewBackgroundThread$lambda$1(MessageQueueThreadImpl.kt:175)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.$r8$lambda$ldnZnqelhYFctGaUKkOKYj5rxo4(Unknown Source:0)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion$$ExternalSyntheticLambda0.run(D8$$SyntheticClass:0)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS:         at java.lang.Thread.run(Thread.java:1119)
+05-15 13:21:09.646  6604  6638 E ReactNativeJS: ]
+05-15 13:21:09.738  1243  3108 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:21:09.882  1243  3108 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:21:17.159  1243 12145 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:21:17.317  1243 12145 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-15 13:21:17.735  1554  1606 I ActivityManager: Killing 3562:com.shazam.android/u0a348 (adj 985): empty #33
+05-15 13:21:17.738  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10348, drop=true
+PS C:\Users\46736\Projects\MetaDataRecorder>
