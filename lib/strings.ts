@@ -93,6 +93,9 @@ export const S = {
   saveToPhone: 'Spara till Music-mapp',
   savedToPhone: 'Sparad till Music/VoiceRecorder',
   alreadyOnPhone: 'Filen finns redan i Music/VoiceRecorder.',
+  importedTitle: 'Importerad',
+  importedMessage: 'Filen har importerats till VoiceRecorder. Originalfilen är kvar på sin ursprungliga plats — inget har flyttats eller raderats.',
+  importedMultiple: 'filer importerade. Originalfilerna är kvar på sina ursprungliga platser.',
 
   // ── Tags / labels ─────────────────────────────────────────────────────────────
   tagsLabel: 'Taggar',

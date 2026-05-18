@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import { File } from 'expo-file-system';
+import { tagColor } from '@/lib/tagColors';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -48,12 +49,12 @@ export default function MetadataScreen() {
   const {
     filePath: filePathParam, duration: durationParam, mode, elapsedAtStart,
     preFilledName, preFilledOfAfter, preFilledOrigin, preFilledSongType, preFilledPerformer, preFilledNotes,
-    focusedField, preFilledCustomData,
+    focusedField, preFilledCustomData, isImport,
   } = useLocalSearchParams<{
     filePath?: string; duration?: string; mode?: string; elapsedAtStart?: string;
     preFilledName?: string; preFilledOfAfter?: string; preFilledOrigin?: string;
     preFilledSongType?: string; preFilledPerformer?: string; preFilledNotes?: string;
-    focusedField?: string; preFilledCustomData?: string;
+    focusedField?: string; preFilledCustomData?: string; isImport?: string;
   }>();
 
   const isLiveMode = mode === 'live';
@@ -280,7 +281,15 @@ export default function MetadataScreen() {
         tags: JSON.stringify(tags),
       });
       Sentry.addBreadcrumb({ category: 'save', message: 'Recording saved successfully', level: 'info' });
-      router.replace('/library');
+      if (isImport === '1') {
+        Alert.alert(
+          S.importedTitle,
+          S.importedMessage,
+          [{ text: 'OK', onPress: () => router.replace('/library') }]
+        );
+      } else {
+        router.replace('/library');
+      }
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'insertRecording', screen: 'metadata' } });
       console.error('[Metadata] handleSave error:', e);
@@ -447,12 +456,15 @@ export default function MetadataScreen() {
           <Text style={[styles.label, { color: colors.icon, marginBottom: 8 }]}>{S.tagsLabel}</Text>
           {tags.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-              {tags.map(tag => (
-                <TouchableOpacity key={tag} onPress={() => setTags(prev => prev.filter(t => t !== tag))}
-                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: colors.tint + '22' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '500', color: colors.tint }}>{tag} ✕</Text>
-                </TouchableOpacity>
-              ))}
+              {tags.map(tag => {
+                const tc = tagColor(tag);
+                return (
+                  <TouchableOpacity key={tag} onPress={() => setTags(prev => prev.filter(t => t !== tag))}
+                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: tc.bg }}>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: tc.text }}>{tag} ✕</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
           <TextInput

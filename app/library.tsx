@@ -27,6 +27,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllUniqueTags, insertRecording, Keyword, Recording } from '@/lib/db';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
+import { tagColor } from '@/lib/tagColors';
 import { requestAutoRecord } from '@/lib/autoRecord';
 import { S } from '@/lib/strings';
 
@@ -162,6 +163,7 @@ export default function LibraryScreen() {
             filePath: asset.uri,
             duration: '0',
             preFilledName: asset.name?.replace(/\.[^.]+$/, '') ?? '',
+            isImport: '1',
           },
         });
       } else {
@@ -183,7 +185,7 @@ export default function LibraryScreen() {
           }
         }
         reload(search, typeFilter, tagFilter);
-        if (count > 0) Alert.alert(`${count} ${count === 1 ? 'fil importerad' : 'filer importerade'}`, '');
+        if (count > 0) Alert.alert(`${count} ${count === 1 ? 'fil importerad' : S.importedMultiple}`, S.importedMessage);
         else Alert.alert(S.error, S.couldNotImport);
       }
     } catch (e) {
@@ -519,13 +521,15 @@ export default function LibraryScreen() {
             <Text style={[styles.filterLabel, { color: colors.icon }]}>{S.tagsLabel}:</Text>
             {allTags.map(tag => {
               const active = tagFilter === tag;
+              const tc = tagColor(tag);
               return (
                 <TouchableOpacity
                   key={tag}
                   onPress={() => setTagFilter(active ? null : tag)}
                   activeOpacity={0.6}
+                  style={[{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }, active && { backgroundColor: tc.bg }]}
                 >
-                  <Text style={[styles.filterWord, { color: colors.text }, active && styles.filterWordActive]}>
+                  <Text style={[styles.filterWord, { color: active ? tc.text : colors.text }, active && styles.filterWordActive]}>
                     {tag}
                   </Text>
                 </TouchableOpacity>

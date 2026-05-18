@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { deleteRecording, getAllUniqueTags, getRecordingById, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
+import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
 import { generateSafeFilename } from '@/lib/filename';
@@ -468,11 +469,14 @@ export default function DetailScreen() {
                 <View style={[styles.metaRow, { borderBottomColor: colors.icon + '22', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
                   <Text style={[styles.metaLabel, { color: colors.icon }]}>{S.tagsLabel}</Text>
                   <View style={styles.tagsRow}>
-                    {parseTags(recording.tags).map(tag => (
-                      <View key={tag} style={[styles.tag, { backgroundColor: colors.tint + '18' }]}>
-                        <Text style={[styles.tagText, { color: colors.tint }]}>{tag}</Text>
-                      </View>
-                    ))}
+                    {parseTags(recording.tags).map(tag => {
+                      const tc = tagColor(tag);
+                      return (
+                        <View key={tag} style={[styles.tag, { backgroundColor: tc.bg }]}>
+                          <Text style={[styles.tagText, { color: tc.text }]}>{tag}</Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -541,22 +545,28 @@ export default function DetailScreen() {
               <View style={styles.editField}>
                 <Text style={[styles.editLabel, { color: colors.icon }]}>{S.tagsLabel}</Text>
                 <View style={styles.tagsRow}>
-                  {editTags.map(tag => (
-                    <TouchableOpacity key={tag} onPress={() => removeTag(tag)}
-                      style={[styles.tag, styles.tagRemovable, { backgroundColor: colors.tint + '22' }]}>
-                      <Text style={[styles.tagText, { color: colors.tint }]}>{tag} ✕</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {editTags.map(tag => {
+                    const tc = tagColor(tag);
+                    return (
+                      <TouchableOpacity key={tag} onPress={() => removeTag(tag)}
+                        style={[styles.tag, styles.tagRemovable, { backgroundColor: tc.bg }]}>
+                        <Text style={[styles.tagText, { color: tc.text }]}>{tag} ✕</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
                 {/* Suggestions from existing tags */}
                 {allTags.filter(t => !editTags.includes(t)).length > 0 && (
                   <View style={styles.tagsRow}>
-                    {allTags.filter(t => !editTags.includes(t)).map(tag => (
-                      <TouchableOpacity key={tag} onPress={() => addTag(tag)}
-                        style={[styles.tag, { backgroundColor: colors.icon + '18' }]}>
-                        <Text style={[styles.tagText, { color: colors.icon }]}>+ {tag}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {allTags.filter(t => !editTags.includes(t)).map(tag => {
+                      const tc = tagColor(tag);
+                      return (
+                        <TouchableOpacity key={tag} onPress={() => addTag(tag)}
+                          style={[styles.tag, { backgroundColor: tc.bg + '88' }]}>
+                          <Text style={[styles.tagText, { color: tc.text }]}>+ {tag}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
                 <TextInput
