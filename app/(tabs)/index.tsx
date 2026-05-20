@@ -29,7 +29,6 @@ import {
   hideRecordingNotification,
   onRecordingNotificationStop,
   showRecordingNotification,
-  updateRecordingNotification,
 } from '@/lib/backgroundRecording';
 import * as TaskManager from 'expo-task-manager';
 import { insertRecording } from '@/lib/db';
@@ -246,7 +245,6 @@ export default function RecorderScreen() {
       const secs = Math.floor(getElapsedMs() / 1000);
       elapsedRef.current = secs;
       setElapsed(secs);
-      updateRecordingNotification(secs).catch(() => {});
     }, 1000);
   }
   function stopTimer() { clearInterval(timerRef.current!); timerRef.current = null; }
@@ -304,7 +302,8 @@ export default function RecorderScreen() {
       setState('recording');
       startTimer();
       startMeterPolling();
-      showRecordingNotification(0).catch(() => {});
+      // Pass the start timestamp so the system chronometer counts from zero.
+      showRecordingNotification(recordingStartMsRef.current).catch(() => {});
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'startRecording' } });
       console.error('[Recorder] startRecording error:', e);
@@ -321,7 +320,6 @@ export default function RecorderScreen() {
       pauseStartMsRef.current = Date.now();
       setState('paused');
       Sentry.addBreadcrumb({ category: 'recording', message: 'Recording paused', level: 'info', data: { elapsedSeconds: elapsedRef.current } });
-      updateRecordingNotification(elapsedRef.current).catch(() => {});
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'pauseRecording' } });
       console.error('[Recorder] pauseRecording error:', e);
@@ -338,7 +336,8 @@ export default function RecorderScreen() {
       startTimer();
       startMeterPolling();
       Sentry.addBreadcrumb({ category: 'recording', message: 'Recording resumed', level: 'info', data: { elapsedSeconds: elapsedRef.current } });
-      showRecordingNotification(elapsedRef.current).catch(() => {});
+      // Virtual start = now − elapsed, so the chronometer shows accumulated time correctly.
+      showRecordingNotification(Date.now() - getElapsedMs()).catch(() => {});
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'resumeRecording' } });
       console.error('[Recorder] resumeRecording error:', e);

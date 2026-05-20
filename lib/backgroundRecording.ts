@@ -19,6 +19,11 @@ TaskManager.defineTask(BACKGROUND_RECORDING_TASK, () => {
 // preventing the OS from revoking mic access during screen lock or app-switch.
 notifee.registerForegroundService(() => new Promise(() => {}));
 
+// Suppress the "[notifee] no background event handler has been set" warning.
+// Without this, Android fires a background event every second during the foreground
+// service, flooding the log and causing unnecessary JS wakeups.
+notifee.onBackgroundEvent(async () => {});
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CHANNEL_ID           = 'recording-status';
 const NOTIFICATION_ID      = 'recording-in-progress';
@@ -36,20 +41,21 @@ export async function initRecordingNotifications(): Promise<void> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function fmtSecs(s: number): string {
-  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
-}
-
-function buildContent(elapsed: number) {
+// `timestamp` is an absolute ms epoch used as the chronometer's start point.
+// Pass `Date.now() - elapsedMs` so the system widget counts up correctly,
+// even when the recording has accumulated paused time.
+function buildContent(timestamp: number) {
   return {
     id: NOTIFICATION_ID,
     title: S.appTitle,
-    body: `● ${S.recordingInProgress}  ${fmtSecs(elapsed)}`,
+    body: `● ${S.recordingInProgress}`,
     android: {
       channelId: CHANNEL_ID,
       asForegroundService: true,
       ongoing: true,
       importance: AndroidImportance.DEFAULT,
+      timestamp,
+      showChronometer: true,
       actions: [
         {
           title: S.stopRecordingBtn,
@@ -60,21 +66,21 @@ function buildContent(elapsed: number) {
   };
 }
 
-export async function showRecordingNotification(elapsed: number): Promise<void> {
+// Call once when recording starts (or resumes after pause).
+// `timestamp` = absolute ms epoch for the chronometer — pass `Date.now() - elapsedMs`
+// so the counter shows the correct accumulated time rather than starting from zero.
+export async function showRecordingNotification(timestamp: number): Promise<void> {
   try {
-    await notifee.displayNotification(buildContent(elapsed));
+    await notifee.displayNotification(buildContent(timestamp));
   } catch (e) {
     console.log('[RecordingNotification] show failed:', e);
   }
 }
 
-export async function updateRecordingNotification(elapsed: number): Promise<void> {
-  try {
-    await notifee.displayNotification(buildContent(elapsed));
-  } catch {
-    // Permission may have been revoked — ignore silently.
-  }
-}
+// No-op: elapsed time is shown via the system showChronometer widget.
+// Re-displaying the notification every second created one PendingIntent per call,
+// which exhausted the Android system limit (~2300) after a long recording session.
+export async function updateRecordingNotification(_elapsed: number): Promise<void> {}
 
 export async function hideRecordingNotification(): Promise<void> {
   try {

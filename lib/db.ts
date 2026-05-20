@@ -86,6 +86,20 @@ export function initDb() {
     );
   `);
 
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS tag_colors (
+      tag TEXT NOT NULL,
+      color TEXT NOT NULL
+    );
+  `);
+
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT NOT NULL,
+      value TEXT NOT NULL
+    );
+  `);
+
   // Column migrations (silent if already present)
   try { db.execSync("ALTER TABLE recordings ADD COLUMN ofAfter TEXT NOT NULL DEFAULT ''"); } catch {}
   try { db.execSync("ALTER TABLE recordings ADD COLUMN origin TEXT NOT NULL DEFAULT ''"); } catch {}
@@ -266,6 +280,65 @@ export function addKeyword(label: string) {
 
 export function deleteKeyword(id: number) {
   db.runSync('DELETE FROM keywords WHERE id = ?', id);
+}
+
+// ── Install ID ───────────────────────────────────────────────────────────────
+// A random UUID generated on first launch and persisted locally.
+// Used for Sentry device grouping without sending any personal identifier.
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+export function getOrCreateInstallId(): string {
+  const row = db.getFirstSync(
+    "SELECT value FROM settings WHERE key = 'installId'"
+  ) as { value: string } | null;
+  if (row) return row.value;
+  const id = generateUUID();
+  db.runSync("INSERT INTO settings (key, value) VALUES ('installId', ?)", id);
+  return id;
+}
+
+// ── Tag colour overrides ──────────────────────────────────────────────────────
+
+export function setTagColor(tag: string, color: string) {
+  db.runSync('DELETE FROM tag_colors WHERE tag = ?', tag);
+  db.runSync('INSERT INTO tag_colors (tag, color) VALUES (?, ?)', tag, color);
+}
+
+export function getTagColor(tag: string): string | null {
+  const row = db.getFirstSync('SELECT color FROM tag_colors WHERE tag = ?', tag) as { color: string } | null;
+  return row?.color ?? null;
+}
+
+export function deleteTagColor(tag: string) {
+  db.runSync('DELETE FROM tag_colors WHERE tag = ?', tag);
+}
+
+export function getAllTagColors(): Record<string, string> {
+  const rows = db.getAllSync('SELECT tag, color FROM tag_colors') as { tag: string; color: string }[];
+  const map: Record<string, string> = {};
+  for (const row of rows) map[row.tag] = row.color;
+  return map;
+}
+
+// Renames a tag in every recording and moves any custom colour to the new name.
+export function renameTag(oldTag: string, newTag: string) {
+  const rows = db.getAllSync(
+    "SELECT id, tags FROM recordings WHERE tags != '[]' AND tags != ''"
+  ) as { id: number; tags: string }[];
+  for (const row of rows) {
+    const tags = parseTags(row.tags);
+    const idx = tags.indexOf(oldTag);
+    if (idx === -1) continue;
+    tags[idx] = newTag;
+    db.runSync('UPDATE recordings SET tags = ? WHERE id = ?', JSON.stringify(tags), row.id);
+  }
+  db.runSync('UPDATE tag_colors SET tag = ? WHERE tag = ?', newTag, oldTag);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -94,6 +94,22 @@ export default function MetadataScreen() {
   const [resolvedFilePath, setResolvedFilePath] = useState<string>(filePathParam ?? '');
   const [resolvedDuration, setResolvedDuration] = useState<number>(Number(durationParam) || 0);
 
+  // Probe actual duration for imported files — duration param is always 0 for imports.
+  useEffect(() => {
+    if (isImport !== '1' || !resolvedFilePath) return;
+    let mounted = true;
+    Audio.Sound.createAsync({ uri: resolvedFilePath }, { shouldPlay: false })
+      .then(({ sound, status }) => {
+        if (mounted && status.isLoaded && status.durationMillis) {
+          setResolvedDuration(Math.round(status.durationMillis / 1000));
+        }
+        return sound.unloadAsync();
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Live recording state ────────────────────────────────────────────────────
   const [isLive, setIsLive] = useState(isLiveMode);
   const [liveElapsed, setLiveElapsed] = useState(Number(elapsedAtStart) || 0);
@@ -253,7 +269,7 @@ export default function MetadataScreen() {
     // (b) live recording stopped via handleStopRecording before pressing Save,
     // (c) live recording stopped inline inside this handleSave.
     if (isCachedPath(filePath)) {
-      Sentry.addBreadcrumb({ category: 'save', message: 'Copying cache file to permanent storage', level: 'info', data: { title: name.trim() || S.untitled } });
+      Sentry.addBreadcrumb({ category: 'save', message: 'Copying cache file to permanent storage', level: 'info' });
       try {
         filePath = await copyToPermanentStorage(filePath, name.trim() || S.untitled);
       } catch (e) {

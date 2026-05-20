@@ -1,7 +1,7 @@
 // Deterministic color from a tag string — same tag always gets the same color
 // on every device, no DB schema change needed.
 
-const PALETTE = [
+export const PALETTE = [
   '#e53935', // red
   '#e91e63', // pink
   '#9c27b0', // purple
@@ -14,12 +14,18 @@ const PALETTE = [
   '#546e7a', // blue-grey
 ];
 
-export function tagColor(tag: string): { bg: string; text: string } {
-  let h = 0;
-  for (let i = 0; i < tag.length; i++) {
-    h = tag.charCodeAt(i) + ((h << 5) - h);
-    h |= 0;
+// Pass customHex to override the deterministic color (user-chosen palette entry).
+export function tagColor(tag: string, customHex?: string): { bg: string; text: string } {
+  let color: string;
+  if (customHex) {
+    color = customHex;
+  } else {
+    let h = 0;
+    for (let i = 0; i < tag.length; i++) {
+      h = tag.charCodeAt(i) + ((h << 5) - h);
+      h |= 0;
+    }
+    color = PALETTE[Math.abs(h) % PALETTE.length];
   }
-  const color = PALETTE[Math.abs(h) % PALETTE.length];
   return { bg: color + '22', text: color }; // ~13% opacity background, full color text
 }

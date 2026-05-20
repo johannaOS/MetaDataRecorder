@@ -25,6 +25,11 @@ import {
   getAllKeywords,
   addKeyword,
   deleteKeyword,
+  setTagColor,
+  getTagColor,
+  deleteTagColor,
+  getAllTagColors,
+  renameTag,
 } from '../lib/db';
 
 // Shared fixture factory
@@ -400,5 +405,81 @@ describe('keyword management', () => {
     const countAfter = getAllKeywords().length;
     expect(countAfter).toBe(countBefore);
     expect(getAllKeywords().some(k => k.label === 'Schottis')).toBe(true);
+  });
+});
+
+// ── Tag colour overrides ──────────────────────────────────────────────────────
+
+describe('tag colour overrides', () => {
+  it('getTagColor returns null when no custom colour is set', () => {
+    expect(getTagColor('Vals')).toBeNull();
+  });
+
+  it('setTagColor stores a colour and getTagColor retrieves it', () => {
+    setTagColor('Vals', '#e53935');
+    expect(getTagColor('Vals')).toBe('#e53935');
+  });
+
+  it('setTagColor overwrites a previously stored colour', () => {
+    setTagColor('Vals', '#2196f3');
+    expect(getTagColor('Vals')).toBe('#2196f3');
+  });
+
+  it('deleteTagColor removes the custom colour', () => {
+    setTagColor('Polska', '#9c27b0');
+    deleteTagColor('Polska');
+    expect(getTagColor('Polska')).toBeNull();
+  });
+
+  it('getAllTagColors returns all stored colours as a map', () => {
+    setTagColor('Schottis', '#00897b');
+    const colors = getAllTagColors();
+    expect(colors['Schottis']).toBe('#00897b');
+    expect(colors['Vals']).toBe('#2196f3'); // set above
+  });
+
+  it('getAllTagColors returns empty map when no colours are set', () => {
+    deleteTagColor('Vals');
+    deleteTagColor('Schottis');
+    const colors = getAllTagColors();
+    expect(Object.keys(colors).length).toBe(0);
+  });
+});
+
+// ── renameTag ─────────────────────────────────────────────────────────────────
+
+describe('renameTag', () => {
+  const base = { ofAfter: '', origin: '', songType: '', performer: '', notes: '',
+    filePath: '/f.m4a', duration: 10, createdAt: '2025-01-01T00:00:00Z', customData: '{}' };
+
+  it('replaces the tag in every recording that has it', () => {
+    const id1 = insertRecording({ ...base, name: 'R-rename-1', tags: '["Valse","Polska"]' });
+    const id2 = insertRecording({ ...base, name: 'R-rename-2', tags: '["Valse"]' });
+    const id3 = insertRecording({ ...base, name: 'R-rename-3', tags: '["Polska"]' });
+
+    renameTag('Valse', 'Vals');
+
+    const r1 = getRecordingById(id1)!;
+    const r2 = getRecordingById(id2)!;
+    const r3 = getRecordingById(id3)!;
+    expect(JSON.parse(r1.tags)).toContain('Vals');
+    expect(JSON.parse(r1.tags)).not.toContain('Valse');
+    expect(JSON.parse(r2.tags)).toEqual(['Vals']);
+    expect(JSON.parse(r3.tags)).toEqual(['Polska']); // untouched
+  });
+
+  it('moves a custom colour to the new tag name', () => {
+    setTagColor('OldColor', '#e91e63');
+    renameTag('OldColor', 'NewColor');
+    expect(getTagColor('NewColor')).toBe('#e91e63');
+    expect(getTagColor('OldColor')).toBeNull();
+    deleteTagColor('NewColor');
+  });
+
+  it('does nothing to recordings that do not have the tag', () => {
+    const id = insertRecording({ ...base, name: 'R-rename-untouched', tags: '["Polska"]' });
+    renameTag('Vals', 'Waltz');
+    const r = getRecordingById(id)!;
+    expect(JSON.parse(r.tags)).toEqual(['Polska']);
   });
 });

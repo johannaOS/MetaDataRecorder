@@ -96,17 +96,18 @@ A mobile app for recording folk music with structured metadata. The core insight
 
 | # | Feature | Impact | Confidence | Ease | ICE | Status |
 |---|---|---|---|---|---|---|
-| 1 | Save recording to phone storage | 8 | 9 | 8 | 576 | 🔴 Next |
-| 2 | Import audio files (file picker, multiple files) | 9 | 9 | 7 | 567 | 🔴 Next |
-| 3 | Folders with color coding | 8 | 9 | 4 | 288 | 🟠 High — requested repeatedly by classmates |
-| 4 | Scrub bar time display while dragging | 8 | 9 | 9 | 648 | 🟠 High |
-| 5 | Share audio file | 7 | 8 | 7 | 392 | 🟠 Planned |
-| 6 | ±5 sec skip buttons | 6 | 9 | 9 | 486 | 🟡 Medium |
-| 7 | A/B loop playback | 7 | 10 | 3 | 210 | 🟡 Medium |
-| 8 | Attach photo/PDF | 6 | 7 | 5 | 210 | 🟡 Medium |
-| 9 | Long press multi-select | 6 | 7 | 4 | 168 | 🟡 Medium |
+| 1 | Save recording to phone storage | 8 | 9 | 8 | 576 | ✅ Done |
+| 2 | Import audio files (file picker, multiple files) | 9 | 9 | 7 | 567 | ✅ Done |
+| 3 | Folders with color coding | 8 | 9 | 4 | 288 | ⬛ Replaced by tags system |
+| 4 | Scrub bar time display while dragging | 8 | 9 | 9 | 648 | ✅ Done |
+| 5 | Share audio file | 7 | 8 | 7 | 392 | ✅ Done |
+| 6 | ±5 sec skip buttons | 6 | 9 | 9 | 486 | ✅ Done |
+| 7 | A/B loop playback | 7 | 10 | 3 | 210 | 🟡 Later |
+| 8 | Attach photo/PDF | 6 | 7 | 5 | 210 | 🟡 Later |
+| 9 | Long press multi-select + batch tag | 6 | 7 | 4 | 168 | ✅ Done |
 | 10 | Audio backup (files + DB) | 6 | 8 | 4 | 192 | 🟡 Later |
 | 11 | Folder import | 5 | 7 | 3 | 105 | 🟡 Later |
+| 12 | ProGuard + resource shrinking (app size) | 6 | 9 | 9 | 486 | 🟡 Later — 2 lines in app.json, do before Play Store release |
 
 ---
 

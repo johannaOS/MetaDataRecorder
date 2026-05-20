@@ -87,19 +87,28 @@ export const S = {
   audioFilesNote: 'Obs: Ljudfiler lagras separat och påverkas inte av säkerhetskopiering eller återställning.',
   restoreSuccess: 'Återställningen slutförd',
 
-  // ── Import / save-to-phone ───────────────────────────────────────────────────
+  // ── Import / save-to-phone / share ──────────────────────────────────────────
   importAudio: 'Importera ljud',
+  shareAudio: 'Dela',
+  shareNotAvailable: 'Delning är inte tillgänglig på den här enheten.',
   couldNotImport: 'Kunde inte importera filen.',
   saveToPhone: 'Spara till Music-mapp',
   savedToPhone: 'Sparad till Music/VoiceRecorder',
   alreadyOnPhone: 'Filen finns redan i Music/VoiceRecorder.',
   importedTitle: 'Importerad',
-  importedMessage: 'Filen har importerats till VoiceRecorder. Originalfilen är kvar på sin ursprungliga plats — inget har flyttats eller raderats.',
-  importedMultiple: 'filer importerade. Originalfilerna är kvar på sina ursprungliga platser.',
+  importedMessage: 'En kopia har sparats i Music/VoiceRecorder. Originalfilen är kvar på sin ursprungliga plats.',
+  importedMultiple: 'Filer importerade. Kopior sparade i Music/VoiceRecorder — originalfilerna är kvar.',
 
   // ── Tags / labels ─────────────────────────────────────────────────────────────
   tagsLabel: 'Taggar',
   addTagPlaceholder: 'Ny tagg…',
+  tagSelected: 'Tagga valda',
+  applyTag: 'Tillämpa',
+  untagged: 'Utan tagg',
+  editTag: 'Redigera tagg',
+  tagColorLabel: 'Välj färg',
+  autoColorLabel: 'Auto',
+  listView: 'Lista',
 
   // ── Playback controls ─────────────────────────────────────────────────────────
   skipBack: 'Hoppa tillbaka',

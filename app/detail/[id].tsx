@@ -1,4 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import { File } from 'expo-file-system';
@@ -261,6 +262,17 @@ export default function DetailScreen() {
     }
   }
 
+  async function handleShare() {
+    if (!recording) return;
+    const available = await Sharing.isAvailableAsync();
+    if (!available) { Alert.alert(S.error, S.shareNotAvailable); return; }
+    try {
+      await Sharing.shareAsync(recording.filePath, { mimeType: 'audio/*' });
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'shareAudio' } });
+    }
+  }
+
   function saveEditing() {
     if (!recording) return;
     try {
@@ -367,6 +379,9 @@ export default function DetailScreen() {
                       <Ionicons name="save-outline" size={22} color={colors.tint} />
                     </TouchableOpacity>
                   )}
+                  <TouchableOpacity onPress={handleShare} style={styles.headerBtn} hitSlop={8}>
+                    <Ionicons name="share-outline" size={22} color={colors.text} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={startEditing} style={styles.headerBtn} hitSlop={8}>
                     <Ionicons name="pencil-outline" size={22} color={colors.text} />
                   </TouchableOpacity>
@@ -418,7 +433,7 @@ export default function DetailScreen() {
                 hitSlop={12}
                 activeOpacity={0.6}
               >
-                <Ionicons name="play-back" size={30} color={colors.icon} />
+                <MaterialIcons name="replay-5" size={34} color={colors.icon} />
               </TouchableOpacity>
               <TouchableOpacity onPress={togglePlay} style={styles.playBtn} activeOpacity={0.7}>
                 <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={68} color={colors.text} />
@@ -428,7 +443,7 @@ export default function DetailScreen() {
                 hitSlop={12}
                 activeOpacity={0.6}
               >
-                <Ionicons name="play-forward" size={30} color={colors.icon} />
+                <MaterialIcons name="forward-5" size={34} color={colors.icon} />
               </TouchableOpacity>
             </View>
           </View>
