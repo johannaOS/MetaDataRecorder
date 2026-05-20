@@ -87,8 +87,10 @@ export const S = {
   audioFilesNote: 'Obs: Ljudfiler lagras separat och påverkas inte av säkerhetskopiering eller återställning.',
   restoreSuccess: 'Återställningen slutförd',
 
-  // ── Import / save-to-phone / share ──────────────────────────────────────────
+  // ── Import / save-to-phone / share / export ─────────────────────────────────
   importAudio: 'Importera ljud',
+  exportSelected: 'Exportera valda',
+  exportingZip: 'Skapar ZIP…',
   shareAudio: 'Dela',
   shareNotAvailable: 'Delning är inte tillgänglig på den här enheten.',
   couldNotImport: 'Kunde inte importera filen.',

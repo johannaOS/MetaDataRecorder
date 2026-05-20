@@ -28,6 +28,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllTagColors, getAllUniqueTags, insertRecording, Keyword, parseTags, Recording, renameTag, setTagColor, deleteTagColor, updateRecording } from '@/lib/db';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { PALETTE, tagColor } from '@/lib/tagColors';
+import { exportRecordingsAsZip } from '@/lib/exportZip';
 import { requestAutoRecord } from '@/lib/autoRecord';
 import { S } from '@/lib/strings';
 
@@ -91,6 +92,7 @@ export default function LibraryScreen() {
   const isSelecting = selectedIds.size > 0;
   const [showTagModal, setShowTagModal] = useState(false);
   const [tagModalInput, setTagModalInput] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
@@ -100,6 +102,20 @@ export default function LibraryScreen() {
     });
   }
   function cancelSelection() { setSelectedIds(new Set()); }
+
+  async function handleExport() {
+    const selected = recordings.filter(r => selectedIds.has(r.id));
+    if (!selected.length) return;
+    setIsExporting(true);
+    try {
+      await exportRecordingsAsZip(selected);
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'exportZip' } });
+      Alert.alert(S.error, String(e));
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   function openTagEditor(tag: string) {
     setEditingTag(tag);
@@ -152,6 +168,9 @@ export default function LibraryScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
             <TouchableOpacity onPress={() => { setTagModalInput(''); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
               <Ionicons name="pricetag-outline" size={22} color={colors.tint} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleExport} hitSlop={8} style={{ padding: 4 }} disabled={isExporting}>
+              <Ionicons name="share-social-outline" size={22} color={isExporting ? colors.icon : colors.tint} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleMultiDelete} hitSlop={8} style={{ padding: 4 }}>
               <Text style={{ color: '#e53935', fontSize: 16, fontWeight: '600' }}>{S.deleteSelected}</Text>
@@ -547,7 +566,7 @@ export default function LibraryScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.viewModeBtn, viewMode === 'tags' && { backgroundColor: colors.tint + '28' }]}
-          onPress={() => setViewMode('tags')}
+          onPress={() => { setViewMode('tags'); setTagFilter(null); }}
         >
           <Ionicons name="pricetags-outline" size={15} color={viewMode === 'tags' ? colors.tint : colors.icon} />
           <Text style={[styles.viewModeBtnText, { color: viewMode === 'tags' ? colors.tint : colors.icon }]}>{S.tagsLabel}</Text>
@@ -598,45 +617,20 @@ export default function LibraryScreen() {
         )}
       </View>}
 
-      {/* Tag filter row — list mode only, shown when tags exist */}
-      {viewMode === 'list' && allTags.length > 0 && (
-        <View style={styles.filterWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-            style={styles.filterScroll}
-          >
-            <Text style={[styles.filterLabel, { color: colors.icon }]}>{S.tagsLabel}:</Text>
-            {allTags.map(tag => {
-              const active = tagFilter === tag;
-              const tc = tagColor(tag, customTagColors[tag]);
-              return (
-                <TouchableOpacity
-                  key={tag}
-                  onPress={() => setTagFilter(active ? null : tag)}
-                  onLongPress={() => openTagEditor(tag)}
-                  delayLongPress={400}
-                  activeOpacity={0.6}
-                  style={[styles.tagChip, { backgroundColor: tc.bg, borderColor: tc.text + (active ? 'cc' : '55'), borderWidth: active ? 1.5 : 1 }]}
-                >
-                  <Text style={[styles.tagChipText, { color: tc.text, fontWeight: active ? '700' : '500' }]}>
-                    {tag}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          {tagFilter !== null && (
-            <TouchableOpacity
-              onPress={() => setTagFilter(null)}
-              style={[styles.clearBtn, { borderColor: colors.tint, backgroundColor: colors.tint + '18' }]}
-            >
+      {/* Active tag indicator — appears in list mode when a tag is filtering */}
+      {viewMode === 'list' && tagFilter !== null && (() => {
+        const tc = tagColor(tagFilter, customTagColors[tagFilter]);
+        return (
+          <View style={styles.activeTagRow}>
+            <View style={[styles.tagChip, { backgroundColor: tc.bg, borderColor: tc.text + 'cc', borderWidth: 1.5 }]}>
+              <Text style={[styles.tagChipText, { color: tc.text, fontWeight: '700' }]}>{tagFilter}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setTagFilter(null)} style={[styles.clearBtn, { borderColor: colors.tint, backgroundColor: colors.tint + '18' }]}>
               <Text style={[styles.clearText, { color: colors.tint }]}>{S.clearFilter}</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      )}
+          </View>
+        );
+      })()}
 
       {/* Add keyword modal */}
       <Modal visible={showAddKeyword} transparent animationType="fade" onRequestClose={() => setShowAddKeyword(false)}>
@@ -676,8 +670,8 @@ export default function LibraryScreen() {
           }
         />
       ) : (
-        // Tag overview — just the tag names as coloured chips, tap to filter
-        <ScrollView contentContainerStyle={[styles.tagOverview, { paddingBottom: 96 + insets.bottom }]}>
+        // Tag overview — vertical list, tap to filter into list view
+        <ScrollView contentContainerStyle={{ paddingBottom: 96 + insets.bottom }}>
           {allTags.length === 0 ? (
             <Text style={[styles.empty, { color: colors.icon }]}>{S.noRecordingsYet}</Text>
           ) : allTags.map(tag => {
@@ -685,13 +679,15 @@ export default function LibraryScreen() {
             return (
               <TouchableOpacity
                 key={tag}
-                style={[styles.tagOverviewChip, { backgroundColor: tc.bg, borderColor: tc.text + '55' }]}
+                style={[styles.tagListRow, { borderBottomColor: colors.icon + '22' }]}
                 onPress={() => { setTagFilter(tag); setViewMode('list'); }}
                 onLongPress={() => openTagEditor(tag)}
                 delayLongPress={400}
-                activeOpacity={0.7}
+                activeOpacity={0.6}
               >
-                <Text style={[styles.tagOverviewText, { color: tc.text }]}>{tag}</Text>
+                <View style={[styles.tagListDot, { backgroundColor: tc.text }]} />
+                <Text style={[styles.tagListName, { color: colors.text }]}>{tag}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.icon} />
               </TouchableOpacity>
             );
           })}
@@ -920,19 +916,24 @@ const styles = StyleSheet.create({
   },
   viewModeBtnText: { fontSize: 13, fontWeight: '500' },
 
-  tagOverview: {
+  activeTagRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 12,
-    gap: 10,
-  },
-  tagOverviewChip: {
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
+    paddingVertical: 6,
+    gap: 8,
   },
-  tagOverviewText: { fontSize: 16, fontWeight: '500' },
+
+  tagListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tagListDot: { width: 12, height: 12, borderRadius: 6 },
+  tagListName: { flex: 1, fontSize: 17, fontWeight: '500' },
 
   colorPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   colorSwatch: {
