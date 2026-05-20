@@ -3,6 +3,7 @@ import * as Sharing from 'expo-sharing';
 import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import { File } from 'expo-file-system';
+import { cacheDirectory, copyAsync, deleteAsync } from 'expo-file-system/legacy';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -264,12 +265,26 @@ export default function DetailScreen() {
 
   async function handleShare() {
     if (!recording) return;
-    const available = await Sharing.isAvailableAsync();
-    if (!available) { Alert.alert(S.error, S.shareNotAvailable); return; }
+    let tmpUri: string | null = null;
     try {
-      await Sharing.shareAsync(recording.filePath, { mimeType: 'audio/*' });
+      const available = await Sharing.isAvailableAsync();
+      if (!available) { Alert.alert(S.error, S.shareNotAvailable); return; }
+
+      let uri = recording.filePath;
+      if (uri.startsWith('content://')) {
+        // expo-sharing only accepts file:// URIs — copy to cache first
+        const ext = uri.replace(/\?.*$/, '').match(/\.([a-z0-9]+)$/i)?.[1] ?? 'm4a';
+        tmpUri = `${cacheDirectory}share_tmp.${ext}`;
+        await copyAsync({ from: uri, to: tmpUri });
+        uri = tmpUri;
+      }
+
+      await Sharing.shareAsync(uri, { mimeType: 'audio/*' });
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'shareAudio' } });
+      Alert.alert(S.error, String(e));
+    } finally {
+      if (tmpUri) deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
     }
   }
 

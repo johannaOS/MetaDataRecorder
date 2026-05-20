@@ -109,6 +109,7 @@ export default function LibraryScreen() {
     setIsExporting(true);
     try {
       await exportRecordingsAsZip(selected);
+      cancelSelection();
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'exportZip' } });
       Alert.alert(S.error, String(e));
@@ -170,7 +171,7 @@ export default function LibraryScreen() {
               <Ionicons name="pricetag-outline" size={22} color={colors.tint} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleExport} hitSlop={8} style={{ padding: 4 }} disabled={isExporting}>
-              <Ionicons name="share-social-outline" size={22} color={isExporting ? colors.icon : colors.tint} />
+              <Ionicons name="share-outline" size={22} color={isExporting ? colors.icon : colors.tint} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleMultiDelete} hitSlop={8} style={{ padding: 4 }}>
               <Text style={{ color: '#e53935', fontSize: 16, fontWeight: '600' }}>{S.deleteSelected}</Text>
