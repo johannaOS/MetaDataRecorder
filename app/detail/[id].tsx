@@ -272,9 +272,11 @@ export default function DetailScreen() {
 
       let uri = recording.filePath;
       if (uri.startsWith('content://')) {
-        // expo-sharing only accepts file:// URIs — copy to cache first
+        // expo-sharing only accepts file:// URIs — copy to cache first under the recording's own name
         const ext = uri.replace(/\?.*$/, '').match(/\.([a-z0-9]+)$/i)?.[1] ?? 'm4a';
-        tmpUri = `${cacheDirectory}share_tmp.${ext}`;
+        const safeName = (recording.name || 'Inspelning').trim()
+          .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-åäöÅÄÖ]/g, '') || 'Inspelning';
+        tmpUri = `${cacheDirectory}${safeName}.${ext}`;
         await copyAsync({ from: uri, to: tmpUri });
         uri = tmpUri;
       }

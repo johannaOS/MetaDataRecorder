@@ -105,6 +105,8 @@ A mobile app for recording folk music with structured metadata. The core insight
 | 7 | A/B loop playback | 7 | 10 | 3 | 210 | 🟡 Later |
 | 8 | Attach photo/PDF | 6 | 7 | 5 | 210 | 🟡 Later |
 | 9 | Long press multi-select + batch tag | 6 | 7 | 4 | 168 | ✅ Done |
+| 13 | Select all (respects active filter) | 5 | 9 | 9 | 405 | ✅ Done |
+| 14 | Tag colour editing from tag view | 5 | 9 | 9 | 405 | ✅ Done — long-press any tag row |
 | 10 | Audio backup (files + DB) | 6 | 8 | 4 | 192 | 🟡 Later |
 | 11 | Folder import | 5 | 7 | 3 | 105 | 🟡 Later |
 | 12 | ProGuard + resource shrinking (app size) | 6 | 9 | 9 | 486 | 🟡 Later — 2 lines in app.json, do before Play Store release |

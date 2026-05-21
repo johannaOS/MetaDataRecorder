@@ -33,6 +33,7 @@ import {
 import * as TaskManager from 'expo-task-manager';
 import { insertRecording } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
+import { tagColor } from '@/lib/tagColors';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 
@@ -57,6 +58,7 @@ type RecorderState = 'idle' | 'recording' | 'paused';
 interface SavedMeta {
   name: string; ofAfter: string; origin: string;
   songType: string; performer: string; notes: string;
+  tags: string[];
 }
 
 const SAVE_COLOR = '#00A878';
@@ -112,6 +114,8 @@ export default function RecorderScreen() {
   const formNotesRef = useRef<TextInput>(null);
   // Tracks the last-focused field so we can restore focus on Screen 2
   const lastFocusedFieldRef = useRef<string>('name');
+  const [formTags, setFormTags] = useState<string[]>([]);
+  const [formTagInput, setFormTagInput] = useState('');
   const [formCustomValues, setFormCustomValues] = useState<Record<string, string>>({});
   const [fieldConfigs, reloadFieldConfigs] = useFieldConfig();
 
@@ -298,6 +302,8 @@ export default function RecorderScreen() {
       setBars(Array(BAR_COUNT).fill(BAR_MIN));
       setElapsed(0);
       setSavedMeta(null);
+      setFormTags([]);
+      setFormTagInput('');
       setIsFormExpanded(false);
       setState('recording');
       startTimer();
@@ -412,6 +418,7 @@ export default function RecorderScreen() {
           songType: savedMeta.songType, performer: savedMeta.performer, notes: savedMeta.notes,
           filePath: finalUri, duration, createdAt: new Date().toISOString(),
           customData: JSON.stringify(formCustomValues),
+          tags: JSON.stringify(savedMeta.tags),
         });
         setSavedMeta(null);
         router.replace('/library');
@@ -429,6 +436,7 @@ export default function RecorderScreen() {
             preFilledNotes: formNotes.trim(),
             focusedField: lastFocusedFieldRef.current,
             preFilledCustomData: JSON.stringify(formCustomValues),
+            preFilledTags: JSON.stringify(formTags),
           },
         });
       }
@@ -445,6 +453,7 @@ export default function RecorderScreen() {
       setFormName(savedMeta.name); setFormOfAfter(savedMeta.ofAfter);
       setFormOrigin(savedMeta.origin); setFormSongType(savedMeta.songType);
       setFormPerformer(savedMeta.performer); setFormNotes(savedMeta.notes);
+      setFormTags(savedMeta.tags);
       formOfAfterLockedRef.current = true; formOriginLockedRef.current = true;
       formSongTypeLockedRef.current = true;
     } else {
@@ -460,7 +469,9 @@ export default function RecorderScreen() {
     setSavedMeta({
       name: formName.trim(), ofAfter: formOfAfter.trim(), origin: formOrigin.trim(),
       songType: formSongType.trim(), performer: formPerformer.trim(), notes: formNotes.trim(),
+      tags: formTags,
     });
+    setFormTagInput('');
     setIsFormExpanded(false);
   }
 
@@ -586,6 +597,40 @@ export default function RecorderScreen() {
                 onFocus={() => { lastFocusedFieldRef.current = 'notes'; }}
                 multiline textAlignVertical="top" returnKeyType="default" blurOnSubmit />
             </>)}
+
+            {/* Tags */}
+            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.tagsLabel}</Text>
+            {formTags.length > 0 && (
+              <View style={styles.formTagChips}>
+                {formTags.map(tag => {
+                  const tc = tagColor(tag);
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[styles.formTagChip, { backgroundColor: tc.bg, borderColor: tc.text + '55' }]}
+                      onPress={() => setFormTags(prev => prev.filter(t => t !== tag))}
+                    >
+                      <Text style={[styles.formTagChipText, { color: tc.text }]}>{tag}</Text>
+                      <Ionicons name="close" size={12} color={tc.text} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+            <TextInput
+              style={formInputStyle}
+              placeholder={S.addTagPlaceholder}
+              placeholderTextColor={colors.icon}
+              value={formTagInput}
+              onChangeText={setFormTagInput}
+              returnKeyType="done"
+              blurOnSubmit={false}
+              onSubmitEditing={() => {
+                const t = formTagInput.trim();
+                if (t && !formTags.includes(t)) setFormTags(prev => [...prev, t]);
+                setFormTagInput('');
+              }}
+            />
 
             {/* Custom fields — visibility already controlled by fieldConfigs */}
             {fieldConfigs.filter(f => !f.isBuiltIn).map(field => (
@@ -825,6 +870,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   formNotesInput: { minHeight: 60 },
+  formTagChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
+  formTagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+  formTagChipText: { fontSize: 13, fontWeight: '500' },
   formButtonsFixed: {
     flexDirection: 'row',
     gap: 10,

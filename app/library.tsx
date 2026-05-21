@@ -103,6 +103,14 @@ export default function LibraryScreen() {
   }
   function cancelSelection() { setSelectedIds(new Set()); }
 
+  function toggleSelectAll() {
+    if (selectedIds.size === recordings.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(recordings.map(r => r.id)));
+    }
+  }
+
   async function handleExport() {
     const selected = recordings.filter(r => selectedIds.has(r.id));
     if (!selected.length) return;
@@ -660,6 +668,26 @@ export default function LibraryScreen() {
         </View>
       </Modal>
 
+      {/* Select-all row — only in list mode selection */}
+      {isSelecting && viewMode === 'list' && (
+        <TouchableOpacity
+          style={[styles.selectAllRow, { borderBottomColor: colors.icon + '22' }]}
+          onPress={toggleSelectAll}
+          activeOpacity={0.6}
+        >
+          <Ionicons
+            name={selectedIds.size === recordings.length ? 'checkmark-circle' : 'ellipse-outline'}
+            size={20}
+            color={colors.tint}
+          />
+          <Text style={[styles.selectAllText, { color: colors.tint }]}>
+            {selectedIds.size === recordings.length
+              ? S.deselectAll
+              : `${S.selectAll} (${recordings.length})`}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {viewMode === 'list' ? (
         <FlatList
           data={recordings}
@@ -916,6 +944,16 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   viewModeBtnText: { fontSize: 13, fontWeight: '500' },
+
+  selectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  selectAllText: { fontSize: 15, fontWeight: '500' },
 
   activeTagRow: {
     flexDirection: 'row',

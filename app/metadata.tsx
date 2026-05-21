@@ -49,12 +49,12 @@ export default function MetadataScreen() {
   const {
     filePath: filePathParam, duration: durationParam, mode, elapsedAtStart,
     preFilledName, preFilledOfAfter, preFilledOrigin, preFilledSongType, preFilledPerformer, preFilledNotes,
-    focusedField, preFilledCustomData, isImport,
+    focusedField, preFilledCustomData, isImport, preFilledTags,
   } = useLocalSearchParams<{
     filePath?: string; duration?: string; mode?: string; elapsedAtStart?: string;
     preFilledName?: string; preFilledOfAfter?: string; preFilledOrigin?: string;
     preFilledSongType?: string; preFilledPerformer?: string; preFilledNotes?: string;
-    focusedField?: string; preFilledCustomData?: string; isImport?: string;
+    focusedField?: string; preFilledCustomData?: string; isImport?: string; preFilledTags?: string;
   }>();
 
   const isLiveMode = mode === 'live';
@@ -75,7 +75,9 @@ export default function MetadataScreen() {
   const [customValues, setCustomValues] = useState<Record<string, string>>(
     preFilledCustomData ? (() => { try { return JSON.parse(preFilledCustomData); } catch { return {}; } })() : {}
   );
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>(() => {
+    try { return JSON.parse(preFilledTags || '[]'); } catch { return []; }
+  });
   const [tagInput, setTagInput] = useState('');
   const [fieldConfigs] = useFieldConfig();
 

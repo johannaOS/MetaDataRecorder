@@ -61,6 +61,8 @@ export const S = {
   noRecordingsYet: 'Inga inspelningar ännu',
   cancelSelection: 'Avbryt',
   deleteSelected: 'Radera valda',
+  selectAll: 'Välj alla',
+  deselectAll: 'Avmarkera alla',
   deleteRecordingPlural: 'Radera inspelningar?',
   deleteAlsoFromMusicFolder: 'Vill du även radera ljudfilerna från telefonens Music/VoiceRecorder-mapp?',
   deleteAppOnly: 'Bara i appen',
