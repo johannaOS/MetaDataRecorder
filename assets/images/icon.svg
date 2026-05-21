@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00897b"/>
+      <stop offset="100%" stop-color="#004d40"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
+
+  <!-- ── Microphone ─────────────────────────────────────────────────────── -->
+
+  <!-- Capsule body -->
+  <rect x="186" y="65" width="88" height="145" rx="44" fill="white"/>
+
+  <!-- Stand bracket (U-shaped arc under capsule) -->
+  <path d="M 163 200 C 163 335 297 335 297 200"
+        stroke="white" stroke-width="16" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Stand vertical -->
+  <line x1="230" y1="300" x2="230" y2="355"
+        stroke="white" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Stand base -->
+  <line x1="183" y1="355" x2="277" y2="355"
+        stroke="white" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- ── Form / document ────────────────────────────────────────────────── -->
+
+  <!-- Paper -->
+  <rect x="282" y="295" width="178" height="188" rx="14" fill="white"/>
+
+  <!-- Title strip -->
+  <rect x="300" y="313" width="115" height="13" rx="5" fill="#b2dfdb"/>
+
+  <!-- Field lines -->
+  <line x1="300" y1="350" x2="440" y2="350"
+        stroke="#00897b" stroke-width="10" stroke-linecap="round"/>
+  <line x1="300" y1="380" x2="418" y2="380"
+        stroke="#00897b" stroke-width="10" stroke-linecap="round"/>
+  <line x1="300" y1="410" x2="428" y2="410"
+        stroke="#00897b" stroke-width="10" stroke-linecap="round"/>
+  <line x1="300" y1="440" x2="398" y2="440"
+        stroke="#00897b" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- ── Pen ────────────────────────────────────────────────────────────── -->
+
+  <g transform="translate(415,435) rotate(-42)">
+    <!-- Body -->
+    <rect x="-9" y="-68" width="18" height="90" rx="5" fill="#e0f2f1"/>
+    <!-- Cap -->
+    <rect x="-9" y="-68" width="18" height="20" rx="5" fill="#80cbc4"/>
+    <!-- Grip band -->
+    <rect x="-9" y="-22" width="18" height="8" rx="2" fill="#4db6ac" opacity="0.7"/>
+    <!-- Tip -->
+    <polygon points="-9,22 9,22 0,44" fill="#004d40"/>
+    <!-- Tip sheen -->
+    <polygon points="2,22 9,22 0,44" fill="#00695c" opacity="0.4"/>
+  </g>
+</svg>
