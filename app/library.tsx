@@ -28,7 +28,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllTagColors, getAllUniqueTags, insertRecording, Keyword, parseTags, Recording, renameTag, setTagColor, deleteTagColor, updateRecording } from '@/lib/db';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { PALETTE, tagColor } from '@/lib/tagColors';
-import { exportRecordingsAsZip } from '@/lib/exportZip';
+import { exportAudioFilesOnly, exportRecordingsAsZip } from '@/lib/exportZip';
 import { requestAutoRecord } from '@/lib/autoRecord';
 import { S } from '@/lib/strings';
 
@@ -111,19 +111,38 @@ export default function LibraryScreen() {
     }
   }
 
-  async function handleExport() {
+  function showExportPrompt() {
     const selected = recordings.filter(r => selectedIds.has(r.id));
     if (!selected.length) return;
-    setIsExporting(true);
-    try {
-      await exportRecordingsAsZip(selected);
-      cancelSelection();
-    } catch (e) {
-      Sentry.captureException(e, { tags: { flow: 'exportZip' } });
-      Alert.alert(S.error, String(e));
-    } finally {
-      setIsExporting(false);
-    }
+    Alert.alert(S.exportPromptTitle, undefined, [
+      {
+        text: S.exportAudioOnly,
+        onPress: async () => {
+          setIsExporting(true);
+          try {
+            await exportAudioFilesOnly(selected);
+            cancelSelection();
+          } catch (e) {
+            Sentry.captureException(e, { tags: { flow: 'exportAudioOnly' } });
+            Alert.alert(S.error, String(e));
+          } finally { setIsExporting(false); }
+        },
+      },
+      {
+        text: S.exportAudioAndMeta,
+        onPress: async () => {
+          setIsExporting(true);
+          try {
+            await exportRecordingsAsZip(selected);
+            cancelSelection();
+          } catch (e) {
+            Sentry.captureException(e, { tags: { flow: 'exportZip' } });
+            Alert.alert(S.error, String(e));
+          } finally { setIsExporting(false); }
+        },
+      },
+      { text: S.cancel, style: 'cancel' },
+    ]);
   }
 
   function openTagEditor(tag: string) {
@@ -178,7 +197,7 @@ export default function LibraryScreen() {
             <TouchableOpacity onPress={() => { setTagModalInput(''); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
               <Ionicons name="pricetag-outline" size={22} color={colors.tint} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleExport} hitSlop={8} style={{ padding: 4 }} disabled={isExporting}>
+            <TouchableOpacity onPress={showExportPrompt} hitSlop={8} style={{ padding: 4 }} disabled={isExporting}>
               <Ionicons name="share-outline" size={22} color={isExporting ? colors.icon : colors.tint} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleMultiDelete} hitSlop={8} style={{ padding: 4 }}>

@@ -93,6 +93,52 @@ async function readBase64(uri: string): Promise<string> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Share audio files only — no CSV.
+// Single file: shares the audio directly (no ZIP). Multiple files: audio-only ZIP.
+export async function exportAudioFilesOnly(
+  recordings: Recording[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  if (recordings.length === 1) {
+    const rec = recordings[0];
+    let uri = rec.filePath;
+    let tmpUri: string | null = null;
+    try {
+      if (uri.startsWith('content://')) {
+        const ext = uri.replace(/\?.*$/, '').match(/\.([a-z0-9]+)$/i)?.[1] ?? 'm4a';
+        const safeName = (rec.name || 'Inspelning').trim()
+          .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-åäöÅÄÖ]/g, '') || 'Inspelning';
+        tmpUri = `${FileSystem.cacheDirectory}${safeName}.${ext}`;
+        await FileSystem.copyAsync({ from: uri, to: tmpUri });
+        uri = tmpUri;
+      }
+      await Sharing.shareAsync(uri, { mimeType: 'audio/*' });
+    } finally {
+      if (tmpUri) FileSystem.deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
+    }
+    return;
+  }
+
+  const zip = new JSZip();
+  const audioFolder = zip.folder('audio')!;
+  const usedNames = new Set<string>();
+
+  for (let i = 0; i < recordings.length; i++) {
+    const { filePath } = recordings[i];
+    const filename = buildZipFilename(recordings[i], usedNames);
+    try {
+      audioFolder.file(filename, await readBase64(filePath), { base64: true });
+    } catch { /* skip unreadable */ }
+    onProgress?.(i + 1, recordings.length);
+  }
+
+  const zipBase64 = await zip.generateAsync({ type: 'base64' });
+  const date = new Date().toISOString().slice(0, 10);
+  const zipPath = `${FileSystem.cacheDirectory}VoiceRecorder_ljud_${date}.zip`;
+  await FileSystem.writeAsStringAsync(zipPath, zipBase64, { encoding: FileSystem.EncodingType.Base64 });
+  await Sharing.shareAsync(zipPath, { mimeType: 'application/zip', dialogTitle: 'Exportera ljud' });
+}
+
 export async function exportRecordingsAsZip(
   recordings: Recording[],
   onProgress?: (done: number, total: number) => void,

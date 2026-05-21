@@ -9,6 +9,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -57,6 +58,15 @@ export default function DetailScreen() {
   const [recording, setRecording] = useState<Recording | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [savingToPhone, setSavingToPhone] = useState(false);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+
+  function showToast() {
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start();
+  }
 
   // Edit field state
   const [editName, setEditName] = useState('');
@@ -282,6 +292,7 @@ export default function DetailScreen() {
       }
 
       await Sharing.shareAsync(uri, { mimeType: 'audio/*' });
+      showToast();
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'shareAudio' } });
       Alert.alert(S.error, String(e));
@@ -632,6 +643,14 @@ export default function DetailScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Share toast — fades in/out after share sheet closes */}
+      <Animated.View
+        style={[styles.toast, { opacity: toastAnim, bottom: 32 + insets.bottom }]}
+        pointerEvents="none"
+      >
+        <Text style={styles.toastText}>{S.fileShared}</Text>
+      </Animated.View>
     </>
   );
 }
@@ -757,4 +776,14 @@ const styles = StyleSheet.create({
   actionBtnSecondary: { borderWidth: 1 },
   actionBtnPrimaryText: { color: 'white', fontSize: 16, fontWeight: '600' },
   actionBtnSecondaryText: { fontSize: 16, fontWeight: '500' },
+
+  toast: {
+    position: 'absolute',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 22,
+  },
+  toastText: { color: 'white', fontSize: 15, fontWeight: '500' },
 });
