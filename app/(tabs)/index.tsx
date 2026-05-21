@@ -31,9 +31,10 @@ import {
   showRecordingNotification,
 } from '@/lib/backgroundRecording';
 import * as TaskManager from 'expo-task-manager';
-import { insertRecording } from '@/lib/db';
+import { getAllUniqueTags, insertRecording } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { tagColor } from '@/lib/tagColors';
+import { commitPendingTag } from '@/lib/tagUtils';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 
@@ -116,6 +117,7 @@ export default function RecorderScreen() {
   const lastFocusedFieldRef = useRef<string>('name');
   const [formTags, setFormTags] = useState<string[]>([]);
   const [formTagInput, setFormTagInput] = useState('');
+  const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
   const [formCustomValues, setFormCustomValues] = useState<Record<string, string>>({});
   const [fieldConfigs, reloadFieldConfigs] = useFieldConfig();
 
@@ -462,14 +464,18 @@ export default function RecorderScreen() {
       formOfAfterLockedRef.current = false; formOriginLockedRef.current = false;
       formSongTypeLockedRef.current = false;
     }
+    setAllExistingTags(getAllUniqueTags());
     setIsFormExpanded(true);
   }
 
   function saveForm() {
+    // Commit any tag that was typed but not yet confirmed with Enter
+    const finalTags = commitPendingTag(formTags, formTagInput);
+    setFormTags(finalTags);
     setSavedMeta({
       name: formName.trim(), ofAfter: formOfAfter.trim(), origin: formOrigin.trim(),
       songType: formSongType.trim(), performer: formPerformer.trim(), notes: formNotes.trim(),
-      tags: formTags,
+      tags: finalTags,
     });
     setFormTagInput('');
     setIsFormExpanded(false);
@@ -598,8 +604,10 @@ export default function RecorderScreen() {
                 multiline textAlignVertical="top" returnKeyType="default" blurOnSubmit />
             </>)}
 
-            {/* Tags */}
+            {/* Tags — selected chips + existing suggestions + text input */}
             <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.tagsLabel}</Text>
+
+            {/* Selected tags — tap to remove */}
             {formTags.length > 0 && (
               <View style={styles.formTagChips}>
                 {formTags.map(tag => {
@@ -607,7 +615,7 @@ export default function RecorderScreen() {
                   return (
                     <TouchableOpacity
                       key={tag}
-                      style={[styles.formTagChip, { backgroundColor: tc.bg, borderColor: tc.text + '55' }]}
+                      style={[styles.formTagChip, { backgroundColor: tc.bg, borderColor: tc.text + '88' }]}
                       onPress={() => setFormTags(prev => prev.filter(t => t !== tag))}
                     >
                       <Text style={[styles.formTagChipText, { color: tc.text }]}>{tag}</Text>
@@ -617,6 +625,26 @@ export default function RecorderScreen() {
                 })}
               </View>
             )}
+
+            {/* Existing tags not yet selected — tap to add */}
+            {allExistingTags.filter(t => !formTags.includes(t)).length > 0 && (
+              <View style={styles.formTagChips}>
+                {allExistingTags.filter(t => !formTags.includes(t)).map(tag => {
+                  const tc = tagColor(tag);
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[styles.formTagChip, { backgroundColor: tc.bg, borderColor: tc.text + '33', borderStyle: 'dashed' }]}
+                      onPress={() => setFormTags(prev => [...prev, tag])}
+                    >
+                      <Text style={[styles.formTagChipText, { color: tc.text, opacity: 0.7 }]}>{tag}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* New tag text input */}
             <TextInput
               style={formInputStyle}
               placeholder={S.addTagPlaceholder}
@@ -626,8 +654,8 @@ export default function RecorderScreen() {
               returnKeyType="done"
               blurOnSubmit={false}
               onSubmitEditing={() => {
-                const t = formTagInput.trim();
-                if (t && !formTags.includes(t)) setFormTags(prev => [...prev, t]);
+                const updated = commitPendingTag(formTags, formTagInput);
+                setFormTags(updated);
                 setFormTagInput('');
               }}
             />
