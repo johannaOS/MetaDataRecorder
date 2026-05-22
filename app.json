@@ -22,8 +22,6 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "enableProguardInReleaseBuilds": true,
-      "enableShrinkResourcesInReleaseBuilds": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "requestLegacyExternalStorage": true,
