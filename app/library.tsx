@@ -5,7 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { deleteAudioFile } from 'save-to-music';
 import {
   Alert,
@@ -70,6 +70,15 @@ export default function LibraryScreen() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+
+  // Always-current refs so useFocusEffect can reload with the latest values
+  // without needing to re-register on every keystroke.
+  const searchRef = useRef(search);
+  const typeFilterRef = useRef(typeFilter);
+  const tagFilterRef = useRef(tagFilter);
+  useLayoutEffect(() => { searchRef.current = search; }, [search]);
+  useLayoutEffect(() => { typeFilterRef.current = typeFilter; }, [typeFilter]);
+  useLayoutEffect(() => { tagFilterRef.current = tagFilter; }, [tagFilter]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -273,6 +282,7 @@ export default function LibraryScreen() {
             duration: '0',
             preFilledName: asset.name?.replace(/\.[^.]+$/, '') ?? '',
             isImport: '1',
+            importedAt: asset.lastModified ? String(asset.lastModified) : '',
           },
         });
       } else {
@@ -283,9 +293,12 @@ export default function LibraryScreen() {
             const name = (asset.name?.replace(/\.[^.]+$/, '') ?? S.untitled).trim() || S.untitled;
             const finalUri = await copyToPermanentStorage(asset.uri, name);
             const duration = await probeAudioDuration(finalUri);
+            const createdAt = asset.lastModified
+              ? new Date(asset.lastModified).toISOString()
+              : new Date().toISOString();
             insertRecording({
               name, filePath: finalUri, duration,
-              createdAt: new Date().toISOString(),
+              createdAt,
               ofAfter: '', origin: '', songType: '', performer: '', notes: '',
               customData: '{}', tags: '[]',
             });
@@ -337,7 +350,10 @@ export default function LibraryScreen() {
   // Reload when navigating back to this screen; clean up audio on leave
   useFocusEffect(
     useCallback(() => {
-      reload(search, typeFilter);
+      // Reads from refs so we always reload with the current search/filter values
+      // even though the callback is memoised with empty deps (avoids re-registering
+      // on every keystroke, which would also trigger the audio cleanup below).
+      reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
       return () => {
         if (playerRef.current) {
           playerRef.current.pauseAsync().catch(() => {});

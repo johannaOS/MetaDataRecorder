@@ -49,12 +49,13 @@ export default function MetadataScreen() {
   const {
     filePath: filePathParam, duration: durationParam, mode, elapsedAtStart,
     preFilledName, preFilledOfAfter, preFilledOrigin, preFilledSongType, preFilledPerformer, preFilledNotes,
-    focusedField, preFilledCustomData, isImport, preFilledTags,
+    focusedField, preFilledCustomData, isImport, preFilledTags, importedAt,
   } = useLocalSearchParams<{
     filePath?: string; duration?: string; mode?: string; elapsedAtStart?: string;
     preFilledName?: string; preFilledOfAfter?: string; preFilledOrigin?: string;
     preFilledSongType?: string; preFilledPerformer?: string; preFilledNotes?: string;
     focusedField?: string; preFilledCustomData?: string; isImport?: string; preFilledTags?: string;
+    importedAt?: string;
   }>();
 
   const isLiveMode = mode === 'live';
@@ -294,7 +295,7 @@ export default function MetadataScreen() {
         notes: notes.trim(),
         filePath,
         duration,
-        createdAt: new Date().toISOString(),
+        createdAt: importedAt ? new Date(Number(importedAt)).toISOString() : new Date().toISOString(),
         customData: JSON.stringify(customValues),
         tags: JSON.stringify(tags),
       });
