@@ -49,7 +49,7 @@ Sentry does not receive:
 
 Sentry is a US-based service. Data sent to Sentry is governed by Sentry's own privacy policy (sentry.io/privacy). As the developer, I can view crash reports in the Sentry dashboard to identify and fix bugs.
 
-If you want to understand exactly what Sentry receives, you can view the open source code for this app at [GitHub repo URL].
+If you want to understand exactly what Sentry receives, you can view the open source code for this app at https://github.com/johannaOS/MetaDataRecorder.
 
 ---
 
