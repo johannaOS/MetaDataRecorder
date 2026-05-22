@@ -391,7 +391,7 @@ export default function MetadataScreen() {
         case 'origin':
           return (
             <View key="origin">
-              <Text style={spacedLabel}>{field.label}</Text>
+              <Text style={spacedLabel}>{field.label} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={originRef} style={inputStyle} placeholder={S.placeholderFrom}
                 placeholderTextColor={colors.icon} value={origin}
                 onChangeText={t => { originLockedRef.current = true; setOrigin(t); }} returnKeyType="next" />
@@ -400,7 +400,7 @@ export default function MetadataScreen() {
         case 'songType':
           return (
             <View key="songType">
-              <Text style={spacedLabel}>{field.label}</Text>
+              <Text style={spacedLabel}>{field.label} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={songTypeRef} style={[inputStyle, songTypeIsAuto && { color: colors.icon }]}
                 placeholder={S.placeholderSongType} placeholderTextColor={colors.icon} value={songType}
                 onChangeText={t => { songTypeLockedRef.current = true; setSongTypeIsAuto(false); setSongType(t); }} returnKeyType="next" />
@@ -409,7 +409,7 @@ export default function MetadataScreen() {
         case 'performer':
           return (
             <View key="performer">
-              <Text style={spacedLabel}>{field.label}</Text>
+              <Text style={spacedLabel}>{field.label} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={performerRef} style={inputStyle} placeholder={S.placeholderPerformer}
                 placeholderTextColor={colors.icon} value={performer} onChangeText={setPerformer} returnKeyType="next" />
             </View>
@@ -417,7 +417,7 @@ export default function MetadataScreen() {
         case 'notes':
           return (
             <View key="notes">
-              <Text style={spacedLabel}>{field.label}</Text>
+              <Text style={spacedLabel}>{field.label} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={notesRef} style={[inputStyle, styles.notesInput]} placeholder={S.placeholderNotes}
                 placeholderTextColor={colors.icon} value={notes} onChangeText={setNotes}
                 multiline textAlignVertical="top" returnKeyType="default" blurOnSubmit />
@@ -430,7 +430,7 @@ export default function MetadataScreen() {
     // Custom field
     return (
       <View key={field.key}>
-        <Text style={spacedLabel}>{field.label}</Text>
+        <Text style={spacedLabel}>{field.label} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
         <TextInput
           style={inputStyle}
           placeholderTextColor={colors.icon}
@@ -472,7 +472,7 @@ export default function MetadataScreen() {
 
         {/* Tags */}
         <View style={{ marginTop: 24 }}>
-          <Text style={[styles.label, { color: colors.icon, marginBottom: 8 }]}>{S.tagsLabel}</Text>
+          <Text style={[styles.label, { color: colors.icon, marginBottom: 8 }]}>{S.tagsLabel} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
           {tags.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
               {tags.map(tag => {
@@ -575,6 +575,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   labelSpaced: { marginTop: 24 },
+  optionalSuffix: { fontSize: 11, fontWeight: '400', textTransform: 'none', letterSpacing: 0, opacity: 0.55 },
 
   prependBtns: { flexDirection: 'row', gap: 6 },
   prependBtnsLabel: { marginBottom: 8 },

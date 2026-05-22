@@ -7,7 +7,7 @@ import { Recording, parseTags } from './db';
 // ── Filename helpers ──────────────────────────────────────────────────────────
 
 function sanitizeTitle(title: string): string {
-  const s = title.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-åäöÅÄÖ]/g, '');
+  const s = title.trim().replace(/\s+/g, ' ').replace(/[^a-zA-Z0-9 \-åäöÅÄÖ]/g, '');
   return s || 'Namnlös';
 }
 

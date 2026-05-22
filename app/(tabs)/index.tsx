@@ -570,7 +570,7 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('origin')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldFrom}</Text>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldFrom} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={formOriginRef} style={formInputStyle} placeholder={S.placeholderFrom}
                 placeholderTextColor={colors.icon} value={formOrigin}
                 onChangeText={t => { formOriginLockedRef.current = true; setFormOrigin(t); }}
@@ -579,7 +579,7 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('songType')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType}</Text>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={formSongTypeRef} style={[formInputStyle, formSongTypeIsAuto && { color: colors.icon }]}
                 placeholder={S.placeholderSongType} placeholderTextColor={colors.icon}
                 value={formSongType} onChangeText={t => { formSongTypeLockedRef.current = true; setFormSongTypeIsAuto(false); setFormSongType(t); }}
@@ -588,7 +588,7 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('performer')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldWhosPlaying}</Text>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldWhosPlaying} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={formPerformerRef} style={formInputStyle} placeholder={S.placeholderPerformer}
                 placeholderTextColor={colors.icon} value={formPerformer} onChangeText={setFormPerformer}
                 onFocus={() => { lastFocusedFieldRef.current = 'performer'; }}
@@ -596,7 +596,7 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('notes')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldNotes}</Text>
+              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldNotes} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               <TextInput ref={formNotesRef} style={[formInputStyle, styles.formNotesInput]}
                 placeholder={S.placeholderNotes} placeholderTextColor={colors.icon}
                 value={formNotes} onChangeText={setFormNotes}
@@ -605,7 +605,7 @@ export default function RecorderScreen() {
             </>)}
 
             {/* Tags — selected chips + existing suggestions + text input */}
-            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.tagsLabel}</Text>
+            <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.tagsLabel} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
 
             {/* Selected tags — tap to remove */}
             {formTags.length > 0 && (
@@ -898,6 +898,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   formNotesInput: { minHeight: 60 },
+  optionalSuffix: { fontSize: 10, fontWeight: '400', textTransform: 'none', letterSpacing: 0, opacity: 0.55 },
   formTagChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
   formTagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   formTagChipText: { fontSize: 13, fontWeight: '500' },

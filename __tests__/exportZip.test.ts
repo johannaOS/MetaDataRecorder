@@ -14,9 +14,9 @@ function rec(overrides: Partial<Recording> = {}): Recording {
 // ── buildZipFilename ──────────────────────────────────────────────────────────
 
 describe('buildZipFilename', () => {
-  it('produces sanitized title + date + extension', () => {
+  it('produces title + date + extension with spaces preserved', () => {
     const name = buildZipFilename(rec(), new Set());
-    expect(name).toBe('Polska_efter_Erik_2026-05-15.m4a');
+    expect(name).toBe('Polska efter Erik_2026-05-15.m4a');
   });
 
   it('deduplicates by appending _2, _3 when names collide', () => {
@@ -24,9 +24,9 @@ describe('buildZipFilename', () => {
     const first  = buildZipFilename(rec(), used);
     const second = buildZipFilename(rec(), used);
     const third  = buildZipFilename(rec(), used);
-    expect(first).toBe('Polska_efter_Erik_2026-05-15.m4a');
-    expect(second).toBe('Polska_efter_Erik_2026-05-15_2.m4a');
-    expect(third).toBe('Polska_efter_Erik_2026-05-15_3.m4a');
+    expect(first).toBe('Polska efter Erik_2026-05-15.m4a');
+    expect(second).toBe('Polska efter Erik_2026-05-15_2.m4a');
+    expect(third).toBe('Polska efter Erik_2026-05-15_3.m4a');
   });
 
   it('preserves the original file extension for imported files', () => {
@@ -48,8 +48,8 @@ describe('buildZipFilename', () => {
     const used = new Set<string>();
     const a = buildZipFilename(rec({ createdAt: '2026-05-01T00:00:00Z' }), used);
     const b = buildZipFilename(rec({ createdAt: '2026-05-02T00:00:00Z' }), used);
-    expect(a).toBe('Polska_efter_Erik_2026-05-01.m4a');
-    expect(b).toBe('Polska_efter_Erik_2026-05-02.m4a');
+    expect(a).toBe('Polska efter Erik_2026-05-01.m4a');
+    expect(b).toBe('Polska efter Erik_2026-05-02.m4a');
   });
 });
 

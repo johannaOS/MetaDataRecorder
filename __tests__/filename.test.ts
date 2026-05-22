@@ -3,20 +3,20 @@ import { generateSafeFilename } from '../lib/filename';
 // ── Sanitisation ───────────────────────────────────────────────────────────────
 
 describe('generateSafeFilename — sanitisation', () => {
-  it('replaces spaces with underscores', () => {
-    expect(generateSafeFilename('Polska efter Erik')).toBe('Polska_efter_Erik.m4a');
+  it('preserves spaces in the filename', () => {
+    expect(generateSafeFilename('Polska efter Erik')).toBe('Polska efter Erik.m4a');
   });
 
-  it('collapses multiple consecutive spaces into one underscore', () => {
-    expect(generateSafeFilename('Vals  från  Dalarna')).toBe('Vals_från_Dalarna.m4a');
+  it('collapses multiple consecutive spaces into one', () => {
+    expect(generateSafeFilename('Vals  från  Dalarna')).toBe('Vals från Dalarna.m4a');
   });
 
   it('strips leading and trailing whitespace before processing', () => {
     expect(generateSafeFilename('  Schottis  ')).toBe('Schottis.m4a');
   });
 
-  it('removes characters that are not letters, digits, underscores, or hyphens', () => {
-    expect(generateSafeFilename('Polska! (nr 3)')).toBe('Polska_nr_3.m4a');
+  it('removes characters that are not letters, digits, spaces, or hyphens', () => {
+    expect(generateSafeFilename('Polska! (nr 3)')).toBe('Polska nr 3.m4a');
   });
 
   it('keeps hyphens', () => {
@@ -24,8 +24,8 @@ describe('generateSafeFilename — sanitisation', () => {
   });
 
   it('keeps Swedish characters å ä ö Å Ä Ö', () => {
-    expect(generateSafeFilename('Polonäs från Dalarna')).toBe('Polonäs_från_Dalarna.m4a');
-    expect(generateSafeFilename('Brudmarschen Åsa')).toBe('Brudmarschen_Åsa.m4a');
+    expect(generateSafeFilename('Polonäs från Dalarna')).toBe('Polonäs från Dalarna.m4a');
+    expect(generateSafeFilename('Brudmarschen Åsa')).toBe('Brudmarschen Åsa.m4a');
   });
 
   it('falls back to "Untitled" when title is empty', () => {
@@ -72,9 +72,8 @@ describe('generateSafeFilename — conflict resolution', () => {
     expect(generateSafeFilename('', ['Untitled.m4a', 'Untitled(1).m4a'])).toBe('Untitled(2).m4a');
   });
 
-  it('spaces-to-underscores applies before conflict check', () => {
-    // "Polska efter Erik" → "Polska_efter_Erik.m4a"; conflict must match the sanitised form
-    const existing = ['Polska_efter_Erik.m4a'];
-    expect(generateSafeFilename('Polska efter Erik', existing)).toBe('Polska_efter_Erik(1).m4a');
+  it('spaces are preserved before conflict check', () => {
+    const existing = ['Polska efter Erik.m4a'];
+    expect(generateSafeFilename('Polska efter Erik', existing)).toBe('Polska efter Erik(1).m4a');
   });
 });

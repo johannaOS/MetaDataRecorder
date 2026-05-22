@@ -1,6 +1,7 @@
 export const S = {
   // ── Common ──────────────────────────────────────────────────────────────────
   save: 'Spara',
+  optional: '(valfritt)',
   cancel: 'Avbryt',
   delete: 'Radera',
   error: 'Fel',
