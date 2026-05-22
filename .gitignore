@@ -43,3 +43,10 @@ app-example
 /android
 
 .env.local
+
+# Project docs — kept locally, not tracked in git
+voicerecorder_handoff.md
+voicerecorder_handoff_v2.md
+voicerecorder_architecture.md
+adb_logs.txt
+prompt.txt
