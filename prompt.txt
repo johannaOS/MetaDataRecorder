@@ -1,83 +1,13 @@
-Bug 1: import audio. 
-visable and clickable + sign for import
-fix1: have a bigger/more clear import sign, perhaps the one with a line and an arrow?
-a click on plus sign leads to select file.
-expected: able to select multiple by long press
-actual: only able to select 1.
-click on an audio file
-expected: import to app
-actual: error pop up.
-log:
-PS C:\Users\46736\Projects\MetaDataRecorder> adb logcat -c
-- waiting for device -
-PS C:\Users\46736\Projects\MetaDataRecorder>   adb logcat -s ReactNativeJS:V MediaRecorder:V AudioFlinger:V ActivityManager:V
---------- beginning of main
-05-16 16:21:43.132  1243  5286 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:21:46.145  1243  2863 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
---------- beginning of system
-05-16 16:21:48.605  1554  1606 I ActivityManager: Changes in 10283 19 to 11, 0 to 128
-05-16 16:21:48.611  1554  5914 I ActivityManager: Changes in 10283 11 to 19, 128 to 0
-05-16 16:21:49.631  1554  1606 I ActivityManager: Changes in 10283 19 to 11, 0 to 128
-05-16 16:21:49.644  1554  2401 I ActivityManager: Changes in 10283 11 to 19, 128 to 0
-05-16 16:21:51.295  1554  1792 D ActivityManager: freezing 18068 com.samsung.android.lool
-05-16 16:21:52.255  1554  1792 D ActivityManager: freezing 18097 com.samsung.sait.sohservice
-05-16 16:21:52.447  1554  1792 D ActivityManager: freezing 16476 com.samsung.android.dqagent
-05-16 16:22:04.543  1554  1600 I ActivityManager: Changes in 10066 19 to 2, 0 to 255
-05-16 16:22:04.566  1554  3809 I ActivityManager: Changes in 10071 19 to 3, 0 to 144
-05-16 16:22:04.567  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10071, drop=false
-05-16 16:22:04.588  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10351, drop=false
-05-16 16:22:04.589  1554  1571 I ActivityManager: Changes in 10351 19 to 3, 0 to 144
-05-16 16:22:05.130  1554  1600 I ActivityManager: Changes in 10557 2 to 15, 255 to 128
-05-16 16:22:05.170  1554  1761 I ActivityManager: Changes in 10557 15 to 15, 128 to 0
-05-16 16:22:08.915  1554  1600 I ActivityManager: Changes in 10557 15 to 2, 0 to 255
-05-16 16:22:08.934 12446 16847 W ReactNativeJS: Method copyAsync imported from "expo-file-system" is deprecated.
-05-16 16:22:08.934 12446 16847 W ReactNativeJS: You can migrate to the new filesystem API using "File" and "Directory" classes or import the legacy API from "expo-file-system/legacy".
-05-16 16:22:08.934 12446 16847 W ReactNativeJS: API reference and examples are available in the filesystem docs: https://docs.expo.dev/versions/v54.0.0/sdk/filesystem/
-05-16 16:22:08.990  1554  1600 I ActivityManager: Changes in 10351 3 to 19, 144 to 128
-05-16 16:22:08.990  1554  1600 I ActivityManager: Changes in 10066 2 to 19, 255 to 128
-05-16 16:22:09.018  1243  2863 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:22:09.390  1554  1600 I ActivityManager: Changes in 10351 19 to 19, 128 to 0
-05-16 16:22:09.390  1554  1600 I ActivityManager: Changes in 10066 19 to 19, 128 to 0
-05-16 16:22:09.395  1243  5286 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:22:13.527  1243  5286 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:22:13.684  1243  5286 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:22:14.947  1554  1605 I ActivityManager: Changes in 10071 3 to 15, 144 to 0
+I want you to always create new tests when applicable, when fixing a bug or building a new feature. Also notify me when you've done so.
 
-Feature: tags/label
-The functionality is there, but it can be a lot more user friendly. 
-1. "etikett" is the wrong word for it. Perhaps "tagg"
-2. now it makes sense to add a second filter row with tags. No wait, I see it now, but it's partly hidden. Design it like the filter menu, but just call it Taggar.
-3. in screen 4, make the tag label bigger and add a header, like "Taggar"
+Fix 1: export single file
+from screen 4 -> export -> share screen appears -> press on add to drive
+expected: go back to screen 4 and a dissapearing pop up vissible for 2-3 s saying something like "your file has been exported"
+actual: goes back to screen 4, no pop up.
 
-Feature: scrub time while dragging:
-works well, but a little hard to do the dragging, design for fat fingers.
+Fix 2: export files
+from library -> long press and select several recordings -> tap on share button
+expected: prompt if want to export only audio files or audiofiles + meta data. If only audiofiles selected -> share audiofiles, not in zip format, if selected "audio + metadata" share as zip file (as it is now)
+actual: share zip file directly, even if only 1 item selected.
 
-Bug 2: save to phone
-symbol is visible, also here change the symbol. The current one I interpret as "download from cloud".
-click on symbol gives a pop up error message.
-The log:
-PS C:\Users\46736\Projects\MetaDataRecorder>   adb logcat -s ReactNativeJS:V MediaRecorder:V AudioFlinger:V ActivityManager:V
---------- beginning of system
-05-16 16:40:46.312  1554  1792 D ActivityManager: freezing 16476 com.samsung.android.dqagent
-05-16 16:40:46.317  1554  1792 D ActivityManager: freezing 18097 com.samsung.sait.sohservice
-05-16 16:40:46.319  1554  1792 D ActivityManager: freezing 18068 com.samsung.android.lool
-05-16 16:40:52.711  1554  1606 I ActivityManager: Changes in 10261 19 to 11, 0 to 128
-05-16 16:40:53.792  1554  2121 I ActivityManager: Changes in 10261 8 to 10, 128 to 0
---------- beginning of main
-05-16 16:40:56.891  1243  2863 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:40:57.033  1243  1243 I AudioFlinger: nonSecFlag 8, secFlag 0, outputFlags 8
-05-16 16:40:57.033  1243  1243 D AudioFlinger: Client defaulted notificationFrames to 4725 for frameCount 14176
-05-16 16:40:57.041  1243 17957 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:40:59.932  1243 17957 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:41:00.087  1243 17957 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-16 16:41:00.193  1554  1606 I ActivityManager: Changes in 10283 19 to 11, 0 to 128
-05-16 16:41:00.197  1554  3762 I ActivityManager: Changes in 10283 11 to 19, 128 to 0
-05-16 16:41:01.770  1554  1606 I ActivityManager: Changes in 10283 19 to 11, 0 to 128
-05-16 16:41:01.774  1554  3762 I ActivityManager: Changes in 10283 11 to 19, 128 to 0
-PS C:\Users\46736\Projects\MetaDataRecorder>
-
-can you see the error message in the log 
-"Error: call to function 'saveToMusic.saveAudioFile' has been rejected.
---> Caused by:
-jaga.lang.IllegalStateExpection: Source file not found: /data/user/0/com.johannaos.VoiceRecorder/files/recordings/VoiceRecorder/En_av_systerpolskorna[...].m4a" 
-I added the [...].
+After this we are ready for to build to upload on playstore.

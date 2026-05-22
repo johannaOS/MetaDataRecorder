@@ -1,234 +1,35 @@
+PS C:\Users\46736\Projects\MetaDataRecorder> adb logcat -c
 PS C:\Users\46736\Projects\MetaDataRecorder>   adb logcat -s ReactNativeJS:V MediaRecorder:V AudioFlinger:V ActivityManager:V
 --------- beginning of system
-05-14 16:21:55.175  1554  1600 I ActivityManager: Changes in 10137 5 to 2, 184 to 255
-05-14 16:21:55.179  1554  5548 I ActivityManager: Changes in 10278 17 to 3, 128 to 184
-05-14 16:21:55.512  1554  1600 I ActivityManager: Changes in 10121 2 to 15, 255 to 128
-05-14 16:21:55.541  1554  1607 I ActivityManager: Start proc 8234:com.google.android.gm/u0a261 for service {com.google.android.gm/androidx.work.impl.background.systemjob.SystemJobService}
-05-14 16:21:55.541  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:21:55.550  1554  2401 I ActivityManager: Changes in 10121 15 to 15, 128 to 0
-05-14 16:21:55.863  1554  2401 I ActivityManager: Changes in 10261 19 to 8, 0 to 128
-05-14 16:21:56.174  1554  4777 I ActivityManager: Changes in 10261 8 to 10, 128 to 0
-05-14 16:21:57.548  1554  2267 D ActivityManager: starting Active launch
-05-14 16:21:57.664  1554  1600 I ActivityManager: Changes in 10557 16 to 2, 0 to 255
-05-14 16:21:57.923  1554  1600 I ActivityManager: Changes in 10137 2 to 5, 255 to 184
-05-14 16:21:57.951  1554  2401 I ActivityManager: Changes in 10278 5 to 17, 184 to 128
-05-14 16:22:00.310  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10312, drop=false
-05-14 16:22:00.319  1554  1600 I ActivityManager: Changes in 10287 19 to 2, 0 to 255
-05-14 16:22:00.330  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10312, drop=false
+05-20 12:13:33.975  1554  5349 D ActivityManager: starting Active launch
+05-20 12:13:34.622  1554  1802 D ActivityManager: Received BROADCAST intent 0xb8346e2 Key{broadcastIntent pkg=com.google.android.gms/com.google.android.gms.location_base intent=act=com.google.android.location.ALARM_WAKEUP_ACTIVITY_DETECTION xflg=0x4 pkg=com.google.android.gms flags=0x4000000 u=0} requestCode=0 sent=0 from uid 1000
+05-20 12:13:34.753  1554  2403 D ActivityManager: starting Active launch
+05-20 12:13:34.850  1554  5349 I ActivityManager: Changes in 10557 15 to 2, 0 to 255
+05-20 12:13:35.160  1554  1600 I ActivityManager: Changes in 10137 2 to 5, 255 to 184
 --------- beginning of main
-05-14 16:22:00.395  6061  6197 I ReactNativeJS: '[Recorder] setting audio mode — platform:', 'android'
-05-14 16:22:00.396  1554  1600 I ActivityManager: Changes in 10287 2 to 19, 255 to 0
-05-14 16:22:00.403  6061  6197 I ReactNativeJS: [Recorder] audio mode set
-05-14 16:22:00.405  6061  6197 I ReactNativeJS: [Recorder] creating recording…
-05-14 16:22:00.406  6061  6201 D MediaRecorder: Constructor MediaRecorder
-05-14 16:22:00.426  6061  6201 I MediaRecorder: prepare
-05-14 16:22:00.434  6061  6201 I MediaRecorder: prepare elapsed time : 8 ms
-05-14 16:22:00.446  1243  8427 I AudioFlinger: AudioFlinger's thread 0xb400006fc7061918 tid=8427 ready to run
-05-14 16:22:00.449  1243 18553 W AudioFlinger: acquireAudioSessionId() unknown client 6061 for session 53401
-05-14 16:22:00.474  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_=0
-05-14 16:22:00.487  6061  6197 I ReactNativeJS: [Recorder] recording started
-05-14 16:22:00.489  6061  6197 I ReactNativeJS: [Recorder] background task registered ✓
-05-14 16:22:00.499  1554  2701 I ActivityManager: Background started FGS: Allowed [callingPackage: com.johannaos.VoiceRecorder; callingUid: 10557; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { act=app.notifee.core.ForegroundService.START xflg=0x4 cmp=com.johannaos.VoiceRecorder/app.notifee.core.ForegroundService (has extras) }; code:PROC_STATE_TOP; tempAllowListReason:<,reasonCode:SYSTEM_ALLOW_LISTED,duration:9223372036854775807,callingUid:-1>; allowWiu:12; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
-05-14 16:22:04.978  6061  6197 I ReactNativeJS: '[Recorder] stopping — wall-clock duration:', 4, 's'
-05-14 16:22:05.064  6061  6201 E MediaRecorder: stop called in an invalid state: 1
-05-14 16:22:05.066  1243  1319 W AudioFlinger: session id 53401 not found for pid 6061
-05-14 16:22:05.069  6061  6197 I ReactNativeJS: '[Recorder] stopped — URI:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Audio/recording-f4d2d111-9468-455c-abd6-b43aadd48d0a.m4a'
-05-14 16:22:05.070  6061  6197 I ReactNativeJS: [Recorder] format: .m4a (MPEG-4 / AAC, 44100 Hz, 2ch, 128 kbps)
-05-14 16:22:05.196  1554  1600 I ActivityManager: Changes in 10190 7 to 5, 128 to 255
-05-14 16:22:05.261  1554  5898 I ActivityManager: Changes in 10108 17 to 5, 0 to 144
-05-14 16:22:08.230  1243  1595 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:11.304  1554  1605 I ActivityManager: Changes in 10108 5 to 15, 144 to 0
-05-14 16:22:31.043  1243  1595 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:31.114  6061  6197 I ReactNativeJS: '[Save] copyToPermanentStorage — title:', 'Debug 16.22.14.05.2026', 'cacheUri:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Audio/recording-f4d2d111-9468-455c-abd6-b43aadd48d0a.m4a'
-05-14 16:22:31.116  6061  6197 I ReactNativeJS: '[Save:Tier1] MediaLibrary save — cacheUri:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Audio/recording-f4d2d111-9468-455c-abd6-b43aadd48d0a.m4a'
-05-14 16:22:31.145  6061  6197 I ReactNativeJS: '[Save:Tier1] temp file with correct name:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Debug_162214052026.m4a'
-05-14 16:22:31.270  6061  6197 I ReactNativeJS: '[Save:Tier1] asset created:', 'Debug_162214052026.m4a', 'id:', '1000051268'
-05-14 16:22:31.308  1554  4777 D ActivityManager: Received ACTIVITY intent 0xe9dde2a Key{startActivity pkg=com.google.android.providers.media.module intent=act=create_write_request xflg=0x4 cmp=com.google.android.providers.media.module/com.android.providers.media.PermissionActivity flags=0x44000000 u=0} requestCode=42 res=0 from uid 10557
-05-14 16:22:31.434  1243  1595 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:31.717  1243  1595 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:32.161  1554  2267 W ActivityManager: Unable to start service Intent { act=com.google.android.gms.lockbox.service.START xflg=0x4 pkg=com.google.android.gms } U=0: not found
-05-14 16:22:32.162  1554  2267 W ActivityManager: Unbind failed: could not find connection for android.os.BinderProxy@7db0b26
-05-14 16:22:32.592  1243  1595 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:32.597  1243  1595 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:32.619  6061  6197 W ReactNativeJS: '[Save:Tier1] MediaLibrary failed:', 'Error: Call to function \'ExpoMediaLibrary.addAssetsToAlbumAsync\' has been rejected.\n→ Caused by: java.lang.SecurityException: com.johannaos.VoiceRecorder has no access to content://media/external/images/media/1000051268'
-05-14 16:22:32.620  6061  6197 I ReactNativeJS: '[Save:Tier2] writing to documents — cacheUri:', 'file:///data/user/0/com.johannaos.VoiceRecorder/cache/Audio/recording-f4d2d111-9468-455c-abd6-b43aadd48d0a.m4a'
-05-14 16:22:32.623  6061  6197 I ReactNativeJS: '[Save:Tier2] source size:', 72469
-05-14 16:22:32.626  6061  6197 I ReactNativeJS: '[Save:Tier2] directory ready:', 'file:///data/user/0/com.johannaos.VoiceRecorder/files/recordings/VoiceRecorder/'
-05-14 16:22:32.649  6061  6197 I ReactNativeJS: '[Save] existing files in dir:', 36
-05-14 16:22:32.651  6061  6197 I ReactNativeJS: '[Save:Tier2] destination:', 'file:///data/user/0/com.johannaos.VoiceRecorder/files/recordings/VoiceRecorder/Debug_162214052026.m4a'
-05-14 16:22:32.653  6061  6197 I ReactNativeJS: '[Save:Tier2] copy done — dest exists:', true
-05-14 16:22:32.654  6061  6197 I ReactNativeJS: '[Save] saved via Tier 2 (documents):', 'file:///data/user/0/com.johannaos.VoiceRecorder/files/recordings/VoiceRecorder/Debug_162214052026.m4a'
-05-14 16:22:33.110  1554  1600 I ActivityManager: Changes in 10190 5 to 7, 255 to 128
-05-14 16:22:33.783  1554  5914 I ActivityManager: Changes in 10246 10 to 5, 0 to 184
-05-14 16:22:33.881  1554  5914 I ActivityManager: Changes in 10246 5 to 10, 184 to 0
-05-14 16:22:33.888  1554  5914 D ActivityManager: Received SERVICE intent 0x73bab33 Key{startService pkg=com.google.android.gms/com.google.android.gms.tapandpay intent=xflg=0x4 cmp=com.google.android.gms/.tapandpay.security.StorageKeyCacheService flags=0x2000000 u=0} requestCode=3000 from uid 10243
-05-14 16:22:39.346  1554  5807 W ActivityManager: Unable to start service Intent { act=com.google.android.gms.lockbox.service.START xflg=0x4 pkg=com.google.android.gms } U=0: not found
-05-14 16:22:39.347  1554  5807 W ActivityManager: Unbind failed: could not find connection for android.os.BinderProxy@be7d3fd
-05-14 16:22:39.407  1554  5914 W ActivityManager: Unable to start service Intent { act=com.google.android.gms.lockbox.service.START xflg=0x4 pkg=com.google.android.gms } U=0: not found
-05-14 16:22:39.411  1554  5807 I ActivityManager: Changes in 10054 19 to 5, 0 to 144
-05-14 16:22:39.412  1554  5914 W ActivityManager: Unbind failed: could not find connection for android.os.BinderProxy@6508dec
-05-14 16:22:40.128  6061  6197 I ReactNativeJS: '[Library] file check —', 'file:///data/user/0/com.johannaos.VoiceRecorder/files/recordings/VoiceRecorder/Hamnar_p%C3%A5_r%C3%A4tt_plats.m4a', '— exists:', true, 'size: 386348 bytes'
-05-14 16:22:40.166  1243  1595 D AudioFlinger: getParameters: filtered dev getParameters keyvalue offloadVariableRateSupported
-05-14 16:22:40.288  1243  3127 I AudioFlinger: nonSecFlag 8, secFlag 0, outputFlags 8
-05-14 16:22:40.288  1243  3127 D AudioFlinger: Client defaulted notificationFrames to 4725 for frameCount 14176
-05-14 16:22:40.294  1243  3127 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd36b6ff0
-05-14 16:22:40.302  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=true
-05-14 16:22:40.308  1243  3127 I AudioFlinger: updateStageIndex new -2108
-05-14 16:22:40.310  1554  2135 I ActivityManager: Changes in 10132 19 to 5, 0 to 144
-05-14 16:22:40.557  1243  1560 D AudioFlinger: mixer(0xb400006fd32124c0) throttle end: throttle time(16)
-05-14 16:22:40.814  1554  5033 W ActivityManager: pid 30641 com.google.android.gms.persistent sent binder code 2 with flags 1 to frozen apps and got error -32
-05-14 16:22:41.022  1554  1607 I ActivityManager: Start proc 8657:com.samsung.android.app.sharelive/5026 for broadcast {com.samsung.android.app.sharelive/com.samsung.android.app.sharelive.presentation.receiver.NearbyShareReceiver}
-05-14 16:22:41.022  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:22:41.269  1554  4777 I ActivityManager: Changes in 10108 17 to 11, 0 to 128
-05-14 16:22:41.269  1554  4777 I ActivityManager: Changes in 5026 19 to 11, 0 to 128
-05-14 16:22:41.269  1554  4777 I ActivityManager: Changes in 5025 8 to 8, 0 to 128
-05-14 16:22:41.290  1554  4777 I ActivityManager: Changes in 10108 11 to 17, 128 to 0
-05-14 16:22:41.290  1554  4777 I ActivityManager: Changes in 5026 11 to 19, 128 to 0
-05-14 16:22:41.290  1554  4777 I ActivityManager: Changes in 5025 8 to 8, 128 to 0
-05-14 16:22:42.636  1554  1772 I ActivityManager: Changes in 10320 19 to 8, 0 to 128
-05-14 16:22:42.689  1554  5914 I ActivityManager: Changes in 10320 8 to 10, 128 to 0
-05-14 16:22:43.994  1554  5033 I ActivityManager: Changes in 10278 17 to 3, 128 to 184
-05-14 16:22:43.994  1554  5033 I ActivityManager: Changes in 10137 5 to 2, 184 to 255
-05-14 16:22:44.088  1554  1607 I ActivityManager: Start proc 8716:com.google.android.apps.tachyon/u0a248 for service {com.google.android.apps.tachyon/androidx.work.impl.background.systemjob.SystemJobService}
-05-14 16:22:44.088  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:22:44.102  1243  1447 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd3256ff0
-05-14 16:22:44.105  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=false
-05-14 16:22:44.309  1554  1600 I ActivityManager: Changes in 10557 2 to 15, 255 to 128
-05-14 16:22:44.345  1554  5033 I ActivityManager: Changes in 10557 15 to 15, 128 to 0
-05-14 16:22:44.555  1554  5033 I ActivityManager: Changes in 10248 19 to 8, 0 to 128
-05-14 16:22:44.634  1554  5807 I ActivityManager: Changes in 10248 8 to 10, 128 to 0
-05-14 16:22:45.473  1554  1605 I ActivityManager: Changes in 10054 5 to 15, 144 to 0
-05-14 16:22:45.723  1554  2267 D ActivityManager: starting Active launch
-05-14 16:22:45.810  1554  1600 I ActivityManager: Changes in 10557 15 to 2, 0 to 255
-05-14 16:22:45.823  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10312, drop=false
-05-14 16:22:45.824  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10312, drop=false
-05-14 16:22:45.829  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10312, drop=false
-05-14 16:22:45.845  1243  3108 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd36b6ff0
-05-14 16:22:45.847  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=true
-05-14 16:22:45.848  1243  3108 I AudioFlinger: updateStageIndex new -2108
-05-14 16:22:45.956  1554  1802 D ActivityManager: Received BROADCAST intent 0x990585a Key{broadcastIntent pkg=com.samsung.android.rubin.app intent=act=com.samsung.android.rubin.controller.keepaliveservice.ACTION_SERVICE_ALARM xflg=0x4 pkg=com.samsung.android.rubin.app cmp=com.samsung.android.rubin.app/com.samsung.android.rubin.controller.services.KeepAliveService$AlarmBroadcastReceiver flags=0x4000000 u=0} requestCode=1 sent=0 from uid 1000
-05-14 16:22:45.957  1554  1606 I ActivityManager: Changes in 10099 10 to 10, 0 to 128
-05-14 16:22:45.958  1554  1802 D ActivityManager: Received SERVICE intent 0x1166303 Key{startService pkg=com.google.android.gms/com.google.android.gms.platformconfigurator intent=act=com.google.android.gms.platformconfigurator.POST_BOOT cat=[targeted_intent_op_prefix:.platformconfigurator.PhenotypeConfigurationUpdateListener] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x4000000 u=0} requestCode=0 from uid 1000
-05-14 16:22:45.968  1554  5548 I ActivityManager: Changes in 10099 10 to 10, 128 to 0
-05-14 16:22:45.983  1554  1607 I ActivityManager: Start proc 8843:com.evilduck.musiciankit/u0a544 for service {com.evilduck.musiciankit/com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService}
-05-14 16:22:45.985  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:22:46.038  1554  1607 I ActivityManager: Start proc 8859:com.google.android.photopicker/u0a323 for broadcast {com.google.android.photopicker/com.android.photopicker.PhotopickerDeviceConfigReceiver}
-05-14 16:22:46.038  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:22:46.102  1554  1600 I ActivityManager: Changes in 10137 2 to 5, 255 to 184
-05-14 16:22:46.124  1554  2401 I ActivityManager: Changes in 10278 5 to 17, 184 to 128
-05-14 16:22:46.243  1554  4777 I ActivityManager: Changes in 10323 19 to 11, 0 to 128
-05-14 16:22:46.262  1554  4777 I ActivityManager: Changes in 10323 11 to 19, 128 to 0
-05-14 16:22:46.331  1554  5402 I ActivityManager: Changes in 10544 19 to 8, 0 to 128
-05-14 16:22:46.331  1554  5402 I ActivityManager: Changes in 10246 10 to 8, 0 to 128
-05-14 16:22:46.554  1554  1554 W ActivityManager: pid 1554 system sent binder code 17 with flags 1 to frozen apps and got error -32
-05-14 16:22:46.554  1554  1554 D ActivityManager: Too many transaction errors, throttling freezer binder callback.
-05-14 16:22:46.597  1554  1607 I ActivityManager: Start proc 8948:com.x8bit.bitwarden/u0a309 for service {com.x8bit.bitwarden/com.x8bit.bitwarden.Autofill.AutofillService}
-05-14 16:22:46.597  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:22:46.733  1554  1606 I ActivityManager: Changes in 10323 19 to 11, 0 to 128
-05-14 16:22:46.744  1554  4777 I ActivityManager: Changes in 10323 11 to 19, 128 to 0
-05-14 16:22:46.790  1554  2401 I ActivityManager: Changes in 10544 8 to 10, 128 to 0
-05-14 16:22:46.791  1554  2401 I ActivityManager: Changes in 10246 8 to 10, 128 to 0
-05-14 16:22:46.938  1554  3865 I ActivityManager: Changes in 10309 19 to 6, 0 to 128
-05-14 16:22:47.685  1243  1447 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd3256ff0
-05-14 16:22:47.686  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=false
-05-14 16:22:48.461  1243  3127 D AudioFlinger: getParameters: filtered dev getParameters keyvalue offloadVariableRateSupported
-05-14 16:22:49.474  1243  3108 I AudioFlinger: nonSecFlag 8, secFlag 0, outputFlags 8
-05-14 16:22:49.474  1243  3108 D AudioFlinger: Client defaulted notificationFrames to 4725 for frameCount 14176
-05-14 16:22:49.687  1243  3108 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd36b6ff0
-05-14 16:22:49.694  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=true
-05-14 16:22:49.696  1243  3108 I AudioFlinger: updateStageIndex new -2108
-05-14 16:22:51.339  1554  1792 D ActivityManager: freezing 8657 com.samsung.android.app.sharelive
-05-14 16:22:51.872  1554  1605 I ActivityManager: Changes in 10132 5 to 15, 144 to 0
-05-14 16:22:51.951  1554  1554 I ActivityManager: Changes in 10309 6 to 10, 128 to 0
-05-14 16:22:55.059  1554  1600 I ActivityManager: Changes in 10557 2 to 12, 255 to 128
-05-14 16:22:55.085  1243  3108 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=off
-05-14 16:22:55.164  1243  1447 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd3256ff0
-05-14 16:22:55.166  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=false
-05-14 16:22:55.265  1243  3108 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=off
-05-14 16:22:55.390  1554  1606 I ActivityManager: Changes in 5025 8 to 8, 0 to 128
-05-14 16:22:55.391  1554  5914 I ActivityManager: Changes in 5025 8 to 8, 128 to 0
-05-14 16:22:55.401  1554  1606 I ActivityManager: Changes in 5006 8 to 8, 0 to 128
-05-14 16:22:55.410  1554  3865 I ActivityManager: Changes in 5006 8 to 8, 128 to 0
-05-14 16:22:55.412  1554  1606 I ActivityManager: Changes in 10073 10 to 10, 0 to 128
-05-14 16:22:55.445  1554  1606 I ActivityManager: Changes in 10099 10 to 10, 0 to 128
-05-14 16:22:55.467  1554  1571 I ActivityManager: Changes in 10099 10 to 10, 128 to 0
-05-14 16:22:55.635  1554  3865 I ActivityManager: Changes in 10073 10 to 10, 128 to 0
-05-14 16:22:55.813  1243  3127 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=off
-05-14 16:22:55.965  1554  1607 I ActivityManager: Start proc 9150:com.samsung.android.app.aodservice/u0a46 for content provider {com.samsung.android.app.aodservice/com.samsung.android.app.aodservice.settings.provider.SALoggingContentProvider}
-05-14 16:22:55.965  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:22:57.306  1243  3127 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:57.362  1554  1606 I ActivityManager: Changes in 5025 8 to 8, 0 to 128
-05-14 16:22:57.369  1243  3127 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
-05-14 16:22:57.372  1554  3810 I ActivityManager: Changes in 5025 8 to 8, 128 to 0
-05-14 16:22:57.376  1554  1606 I ActivityManager: Changes in 5006 8 to 8, 0 to 128
-05-14 16:22:57.383  1554  5807 I ActivityManager: Changes in 5006 8 to 8, 128 to 0
-05-14 16:22:57.385  1554  1606 I ActivityManager: Changes in 10073 10 to 10, 0 to 128
-05-14 16:22:57.391  1554  1606 I ActivityManager: Changes in 10099 10 to 10, 0 to 128
-05-14 16:22:57.398  1554  1571 I ActivityManager: Changes in 10099 10 to 10, 128 to 0
-05-14 16:22:57.703  1554  5807 I ActivityManager: Changes in 10073 10 to 10, 128 to 0
-05-14 16:22:58.232  1554  2175 I ActivityManager: Killing 8234:com.google.android.gm/u0a261 (adj 925): Chimera #0
-05-14 16:22:58.239  1554  2175 D ActivityManager: proc ProcessRecord{471b417 8234:com.google.android.gm/u0a261} already removed. so we skip next process.
-05-14 16:22:58.243  1554  2175 I ActivityManager: Killing 6732:com.jrustonapps.myauroraforecast/u0a487 (adj 945): Chimera #0
-05-14 16:22:58.244  1554  2175 D ActivityManager: proc ProcessRecord{bd42237 6732:com.jrustonapps.myauroraforecast/u0a487} already removed. so we skip next process.
-05-14 16:22:58.246  1554  2175 I ActivityManager: Killing 4927:com.android.chrome/u0a258 (adj 985): Chimera #0
-05-14 16:22:58.247  1554  2175 D ActivityManager: proc ProcessRecord{e7726c1 4927:com.android.chrome/u0a258} already removed. so we skip next process.
-05-14 16:22:58.248  1554  2175 I ActivityManager: Killing 5366:system:ui/1000 (adj 965): Chimera #0
-05-14 16:22:58.248  1554  2175 D ActivityManager: proc ProcessRecord{5ebd007 5366:system:ui/1000} already removed. so we skip next process.
-05-14 16:22:58.342  1554  5548 V ActivityManager: Got obituary of 5366:system:ui
-05-14 16:22:58.344  1554  5845 V ActivityManager: Got obituary of 6732:com.jrustonapps.myauroraforecast
-05-14 16:22:58.346  1554  4235 V ActivityManager: Got obituary of 8234:com.google.android.gm
-05-14 16:22:58.349  1554  5898 V ActivityManager: Got obituary of 4927:com.android.chrome
-05-14 16:22:58.363  1554  1600 W ActivityManager: setHasOverlayUi called on unknown pid: 5366
-05-14 16:23:00.437  1554  2267 D ActivityManager: !@AM_BOOT_PROGRESS , uid : 0, state:  -1, progress : 0, step : unlockUser, description : NULL
-05-14 16:23:00.437  1554  2267 D ActivityManager: !@AM_BOOT_PROGRESS , uid : 0, state:  -1, progress : 1, step : unlockUser, description : call maybeUnlockUser
-05-14 16:23:00.437  1554  2267 D ActivityManager: !@AM_BOOT_PROGRESS , uid : 0, state:  -1, progress : 0, step : maybeUnlockUser, description : NULL
-05-14 16:23:00.439  1554  2267 D ActivityManager: !@AM_BOOT_PROGRESS , uid : 0, state:  3, progress : 0, step : finishUserUnlocking, description : NULL
-05-14 16:23:00.439  1554  2267 D ActivityManager: UserController event: finishUserUnlocking(0)
-05-14 16:23:00.440  1554  2267 D ActivityManager: !@AM_BOOT_PROGRESS , uid : 0, state:  3, progress : 1, step : finishUserUnlocking, description : OK StorageManager.isUserKeyUnlocked
-05-14 16:23:00.519  1554  1600 I ActivityManager: Changes in 10557 12 to 2, 128 to 255
-05-14 16:23:00.531  1243  3108 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd36b6ff0
-05-14 16:23:00.538  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=true
-05-14 16:23:00.538  1554  2135 I ActivityManager: Changes in 10132 15 to 5, 0 to 144
-05-14 16:23:00.542  1243  3108 I AudioFlinger: updateStageIndex new -2108
-05-14 16:23:00.632  1554  1606 I ActivityManager: Changes in 10482 19 to 11, 0 to 128
-05-14 16:23:00.632  1554  1606 I ActivityManager: Changes in 10212 19 to 11, 0 to 128
-05-14 16:23:00.645  1554  3810 I ActivityManager: Changes in 10482 11 to 19, 128 to 0
-05-14 16:23:00.659  1554  2416 I ActivityManager: Changes in 10212 11 to 19, 128 to 0
-05-14 16:23:00.772  1554  5898 I ActivityManager: Changes in 10212 19 to 8, 0 to 128
-05-14 16:23:00.792  1243  1560 D AudioFlinger: mixer(0xb400006fd32124c0) Spend too much time to write: delta 241(effect 0, stage 1)
-05-14 16:23:00.854  1243  1560 D AudioFlinger: mixer(0xb400006fd32124c0) throttle end: throttle time(25)
-05-14 16:23:01.045  1554  2267 D ActivityManager: Received SERVICE intent 0x98d3f64 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.location.internal.action.FLP_AR_RESULT xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/com.google.android.location.internal.PendingIntentCallbackService flags=0x2000000 u=0} requestCode=0 from uid 10243
-05-14 16:23:01.049  1554  3809 D ActivityManager: Received SERVICE intent 0x1a674f7 Key{startService pkg=com.google.android.gms/com.google.android.gms.location_base intent=act=com.google.android.location.internal.action.AR_TRANSITION_RESULT xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/com.google.android.location.internal.PendingIntentCallbackService flags=0x2000000 u=0} requestCode=0 from uid 10243
-05-14 16:23:01.052  1554  2267 D ActivityManager: Received BROADCAST intent 0x2fddfb8 Key{broadcastIntent pkg=com.google.android.gms/com.google.android.gms.personalsafety intent=act=com.google.android.gms.personalsafety.scanners.ACTION_ACTIVITY_DETECTED xflg=0x4 pkg=com.google.android.gms flags=0x2000000 u=0} requestCode=0 sent=0 from uid 10243
-05-14 16:23:01.055  1554  2267 D ActivityManager: Received SERVICE intent 0x3c489b6 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.gms.location.util.nlp.RESULT cat=[targeted_intent_op_prefix:.location.util.nlp.NlpInternalApi$NlpReceiverIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x2000000 u=0} requestCode=1 from uid 10243
-05-14 16:23:01.057  1554  2267 D ActivityManager: Received SERVICE intent 0x3e39a8 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.gms.location.util.nlp.RESULT cat=[targeted_intent_op_prefix:.location.util.nlp.NlpInternalApi$NlpReceiverIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x2000000 u=0} requestCode=2 from uid 10243
-05-14 16:23:03.057  1243  1447 W AudioFlinger: moveEffectChain_ll: effect chain for session 0 not on source thread 0xb400006fd3256ff0
-05-14 16:23:03.058  1243  1446 D AudioFlinger: setParameters: filtered dev setParameters keyvalue l_stream_music_active=false
-05-14 16:23:06.567  1554  1605 I ActivityManager: Changes in 10132 5 to 15, 144 to 0
-05-14 16:23:06.932  1554  3809 I ActivityManager: Changes in 10278 17 to 3, 128 to 184
-05-14 16:23:06.933  1554  3809 I ActivityManager: Changes in 10137 5 to 2, 184 to 255
-05-14 16:23:07.279  1554  1600 I ActivityManager: Changes in 10557 2 to 15, 255 to 128
-05-14 16:23:07.332  1554  3809 I ActivityManager: Changes in 10557 15 to 15, 128 to 0
-05-14 16:23:08.500  1554  5914 D ActivityManager: starting Active launch
-05-14 16:23:08.648  1554  1606 I ActivityManager: com.samsung.android.wallpaper.live is exempt from freezer by list
-05-14 16:23:08.670  1554  1607 I ActivityManager: Start proc 9436:com.samsung.android.wallpaper.live/u0a97 for broadcast {com.samsung.android.wallpaper.live/com.samsung.android.weather.api.receiver.WeatherDataSyncSecureReceiver}
-05-14 16:23:08.670  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:23:08.684  1554  1607 I ActivityManager: Start proc 9437:com.sec.android.daemonapp:weather_content_provider/u0a212 for content provider {com.sec.android.daemonapp/com.sec.android.daemonapp.provider.SystemLevelContentProvider}
-05-14 16:23:08.684  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:23:08.766  1554  5898 I ActivityManager: Changes in 10097 19 to 11, 0 to 128
-05-14 16:23:08.772  1554  1606 I ActivityManager: com.samsung.android.app.dressroom is exempt from freezer by list
-05-14 16:23:08.773  1554  5898 I ActivityManager: Changes in 10097 11 to 19, 128 to 0
-05-14 16:23:08.786  1554  1607 I ActivityManager: Start proc 9473:com.samsung.android.app.dressroom/1000 for broadcast {com.samsung.android.app.dressroom/com.samsung.android.weather.api.receiver.WeatherDataSyncSecureReceiver}
-05-14 16:23:08.786  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
-05-14 16:23:08.960  1554  5914 I ActivityManager: Changes in 10212 8 to 5, 128 to 184
-05-14 16:23:08.972  1554  2175 I ActivityManager: Killing 27285:org.telegram.messenger/u0a337 (adj 950): Chimera #2
-05-14 16:23:08.973  1554  2976 D ActivityManager: unpendingScheduleServiceRestart: u=10337, drop=true
-05-14 16:23:08.980  1554  2175 D ActivityManager: proc ProcessRecord{a2817d6 27285:org.telegram.messenger/u0a337} already removed. so we skip next process.
-05-14 16:23:09.136  1554  5914 V ActivityManager: Got obituary of 27285:org.telegram.messenger
-05-14 16:23:09.136  1243  1595 I AudioFlinger: removeDlbCodecCallback pid:27285 type:-1
-05-14 16:23:09.140  1554  1600 W ActivityManager: setHasOverlayUi called on unknown pid: 27285
-05-14 16:23:09.288  1554  5806 D ActivityManager: starting Active launch
-05-14 16:23:09.374  1554  1600 I ActivityManager: Changes in 10121 16 to 2, 0 to 255
-05-14 16:23:09.635  1554  1600 I ActivityManager: Changes in 10137 2 to 5, 255 to 184
-05-14 16:23:09.654  1554  1762 I ActivityManager: Changes in 10278 5 to 17, 184 to 128
+05-20 12:13:41.760  1243 14617 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-20 12:13:41.904  1243 14617 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-20 12:13:42.505  1243 14617 I AudioFlinger: nonSecFlag 8, secFlag 0, outputFlags 8
+05-20 12:13:42.506  1243 14617 D AudioFlinger: Client defaulted notificationFrames to 4725 for frameCount 14176
+05-20 12:13:43.676  1554  5806 D ActivityManager: Received BROADCAST intent 0x2fddfb8 Key{broadcastIntent pkg=com.google.android.gms/com.google.android.gms.personalsafety intent=act=com.google.android.gms.personalsafety.scanners.ACTION_ACTIVITY_DETECTED xflg=0x4 pkg=com.google.android.gms flags=0x2000000 u=0} requestCode=0 sent=0 from uid 10243
+05-20 12:13:43.688  1554  5898 D ActivityManager: Received SERVICE intent 0x31ac68c Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.gms.location.util.nlp.RESULT cat=[targeted_intent_op_prefix:.location.util.nlp.NlpInternalApi$NlpReceiverIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x2000000 u=0} requestCode=1 from uid 10243
+05-20 12:13:43.695  1554  5806 D ActivityManager: Received SERVICE intent 0x98d3f64 Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.location.internal.action.FLP_AR_RESULT xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/com.google.android.location.internal.PendingIntentCallbackService flags=0x2000000 u=0} requestCode=0 from uid 10243
+05-20 12:13:43.703  1554  2403 D ActivityManager: Received SERVICE intent 0x1dfbdea Key{startService pkg=com.google.android.gms/fused_location_provider intent=act=com.google.android.gms.location.util.nlp.RESULT cat=[targeted_intent_op_prefix:.location.util.nlp.NlpInternalApi$NlpReceiverIntentOperation] xflg=0x4 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService flags=0x2000000 u=0} requestCode=2 from uid 10243
+05-20 12:13:43.712  1554  2403 D ActivityManager: Received SERVICE intent 0x1a674f7 Key{startService pkg=com.google.android.gms/com.google.android.gms.location_base intent=act=com.google.android.location.internal.action.AR_TRANSITION_RESULT xflg=0x4 pkg=com.google.android.gms cmp=com.google.android.gms/com.google.android.location.internal.PendingIntentCallbackService flags=0x2000000 u=0} requestCode=0 from uid 10243
+05-20 12:14:01.108  1554  1607 I ActivityManager: Start proc 14159:com.google.android.cellbroadcastreceiver/u0a283 for broadcast {com.google.android.cellbroadcastreceiver/com.android.cellbroadcastreceiver.CellBroadcastReceiver}
+05-20 12:14:01.109  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
+05-20 12:14:01.357  1243 18553 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-20 12:14:01.357  1554  3762 I ActivityManager: Changes in 10283 19 to 11, 0 to 128
+05-20 12:14:01.394  1554  5806 I ActivityManager: Changes in 10283 11 to 19, 128 to 0
+05-20 12:14:01.513  1243 18553 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-20 12:14:05.660  1554  1607 I ActivityManager: Start proc 14190:com.samsung.android.game.gos/u0a75 for service {com.samsung.android.game.gos/com.samsung.android.game.gos.service.GameIntentService}
+05-20 12:14:05.660  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
+05-20 12:14:05.674  1554  1607 I ActivityManager: Start proc 14191:com.samsung.android.fast/u0a168 for broadcast {com.samsung.android.fast/com.samsung.android.fast.common.SecureWifiReceiver}
+05-20 12:14:05.674  1554  1607 I ActivityManager: ProcessObserver broadcast disabled
+05-20 12:14:05.817  1554  5845 I ActivityManager: Changes in 10168 19 to 11, 0 to 128
+05-20 12:14:05.978  1554  5349 I ActivityManager: Changes in 10168 11 to 19, 128 to 0
+05-20 12:14:07.285  1243  2863 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-20 12:14:07.428  1243  2863 D AudioFlinger: setParameters: filtered dev setParameters keyvalue screen_state=on
+05-20 12:14:07.436  1243 14617 I AudioFlinger: nonSecFlag 8, secFlag 0, outputFlags 8
+05-20 12:14:07.436  1243 14617 D AudioFlinger: Client defaulted notificationFrames to 4725 for frameCount 14176
 PS C:\Users\46736\Projects\MetaDataRecorder>
