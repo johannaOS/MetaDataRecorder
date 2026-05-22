@@ -8,6 +8,7 @@ import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { deleteAudioFile } from 'save-to-music';
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   FlatList,
@@ -102,6 +103,8 @@ export default function LibraryScreen() {
   const [showTagModal, setShowTagModal] = useState(false);
   const [tagModalInput, setTagModalInput] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
 
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
@@ -286,18 +289,20 @@ export default function LibraryScreen() {
           },
         });
       } else {
-        // Multiple files → batch import with filename as title, then reload library
+        // Multiple files → batch import. Duration probing is skipped for speed
+        // (400 files × ~1s probe = too slow). Duration stays 0 in the library list.
+        const total = assets.length;
         let count = 0;
+        setImportProgress({ done: 0, total });
         for (const asset of assets) {
           try {
             const name = (asset.name?.replace(/\.[^.]+$/, '') ?? S.untitled).trim() || S.untitled;
             const finalUri = await copyToPermanentStorage(asset.uri, name);
-            const duration = await probeAudioDuration(finalUri);
             const createdAt = asset.lastModified
               ? new Date(asset.lastModified).toISOString()
               : new Date().toISOString();
             insertRecording({
-              name, filePath: finalUri, duration,
+              name, filePath: finalUri, duration: 0,
               createdAt,
               ofAfter: '', origin: '', songType: '', performer: '', notes: '',
               customData: '{}', tags: '[]',
@@ -306,8 +311,12 @@ export default function LibraryScreen() {
           } catch (e) {
             Sentry.captureException(e, { tags: { flow: 'importAudioBatch' } });
           }
+          setImportProgress({ done: count, total });
+          // Reload every 50 files so items appear progressively
+          if (count % 50 === 0) reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
         }
-        reload(search, typeFilter, tagFilter);
+        setImportProgress(null);
+        reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
         if (count > 0) Alert.alert(`${count} ${count === 1 ? 'fil importerad' : S.importedMultiple}`, S.importedMessage);
         else Alert.alert(S.error, S.couldNotImport);
       }
@@ -429,30 +438,34 @@ export default function LibraryScreen() {
   // ── Deletion helpers ──────────────────────────────────────────────────────────
 
   async function deleteRecordingFiles(ids: number[], deleteFiles: boolean) {
-    // Stop playback if the currently playing item is being deleted
-    if (playingId !== null && ids.includes(playingId)) {
-      await playerRef.current?.pauseAsync().catch(() => {});
-      await playerRef.current?.unloadAsync().catch(() => {});
-      playerRef.current = null;
-      setPlayingId(null);
-      hidePlaybackNotification().catch(() => {});
-    }
-    for (const id of ids) {
-      const rec = recordings.find(r => r.id === id);
-      if (!rec) continue;
-      if (deleteFiles) {
-        try {
-          if (rec.filePath.startsWith('content://')) {
-            await deleteAudioFile(rec.filePath);
-          } else {
-            new File(rec.filePath).delete();
-          }
-        } catch (e) { console.warn('[Library] file delete error:', e); }
+    setIsDeleting(true);
+    try {
+      if (playingId !== null && ids.includes(playingId)) {
+        await playerRef.current?.pauseAsync().catch(() => {});
+        await playerRef.current?.unloadAsync().catch(() => {});
+        playerRef.current = null;
+        setPlayingId(null);
+        hidePlaybackNotification().catch(() => {});
       }
-      try { deleteRecording(id); } catch (e) { console.error('[Library] DB delete error:', e); }
+      for (const id of ids) {
+        const rec = recordings.find(r => r.id === id);
+        if (!rec) continue;
+        if (deleteFiles) {
+          try {
+            if (rec.filePath.startsWith('content://')) {
+              await deleteAudioFile(rec.filePath);
+            } else {
+              new File(rec.filePath).delete();
+            }
+          } catch (e) { console.warn('[Library] file delete error:', e); }
+        }
+        try { deleteRecording(id); } catch (e) { console.error('[Library] DB delete error:', e); }
+      }
+    } finally {
+      setIsDeleting(false);
+      cancelSelection();
+      reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
     }
-    cancelSelection();
-    reload(search, typeFilter);
   }
 
   function promptDelete(ids: number[]) {
@@ -878,6 +891,24 @@ export default function LibraryScreen() {
         </View>
       </Modal>
 
+      {/* Deletion in-progress overlay */}
+      {isDeleting && (
+        <View style={styles.busyOverlay}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.busyText}>{S.deletingInProgress}</Text>
+        </View>
+      )}
+
+      {/* Batch import progress overlay */}
+      {importProgress !== null && (
+        <View style={styles.busyOverlay}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.busyText}>
+            {S.importingFiles} {importProgress.done}/{importProgress.total}
+          </Text>
+        </View>
+      )}
+
       {/* Floating record button — hidden in selection mode */}
       {!isSelecting && (
         <View style={[styles.fabContainer, { bottom: 24 + insets.bottom }]} pointerEvents="box-none">
@@ -979,6 +1010,16 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   viewModeBtnText: { fontSize: 13, fontWeight: '500' },
+
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    zIndex: 99,
+  },
+  busyText: { color: 'white', fontSize: 17, fontWeight: '500' },
 
   selectAllRow: {
     flexDirection: 'row',

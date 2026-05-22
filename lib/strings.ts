@@ -66,6 +66,8 @@ export const S = {
   noRecordingsYet: 'Inga inspelningar ännu',
   cancelSelection: 'Avbryt',
   deleteSelected: 'Radera valda',
+  deletingInProgress: 'Raderar…',
+  importingFiles: 'Importerar',
   selectAll: 'Välj alla',
   deselectAll: 'Avmarkera alla',
   deleteRecordingPlural: 'Radera inspelningar?',
