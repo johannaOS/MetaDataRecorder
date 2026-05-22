@@ -49,6 +49,10 @@ export const S = {
   newFieldPlaceholder: 'Fältnamn…',
   deleteField: 'Radera fält',
   builtInFieldHint: 'Inbyggt fält kan inte raderas',
+  titleFieldRequired: 'Titelfältet är alltid obligatoriskt och kan inte tas bort.',
+  removeFromForm: 'Ta bort från formulär',
+  restoreField: 'Lägg tillbaka i formulär',
+  removeBuiltInConfirm: 'Fältet döljs i formuläret. Du kan alltid lägga tillbaka det härifrån.',
   maxFieldsTitle: 'Maximalt antal fält nått',
   maxFieldsMessage: 'Du kan ha högst 20 fält totalt (inklusive dolda fält). Radera ett befintligt fält för att frigöra plats.',
 

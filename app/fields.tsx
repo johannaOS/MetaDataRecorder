@@ -63,7 +63,23 @@ export default function FieldsScreen() {
 
   function handleLongPress(field: FieldConfig) {
     if (field.isBuiltIn) {
-      Alert.alert(field.label, S.builtInFieldHint);
+      if (field.key === 'name') {
+        Alert.alert(field.label, S.titleFieldRequired);
+        return;
+      }
+      // Non-title built-in fields can be hidden from or restored to the form
+      Alert.alert(
+        field.label,
+        field.isVisible ? S.removeBuiltInConfirm : S.removeBuiltInConfirm,
+        [
+          { text: S.cancel, style: 'cancel' },
+          {
+            text: field.isVisible ? S.removeFromForm : S.restoreField,
+            style: field.isVisible ? 'destructive' : 'default',
+            onPress: () => { updateFieldVisibility(field.key, !field.isVisible); reload(); },
+          },
+        ]
+      );
       return;
     }
 
@@ -121,6 +137,9 @@ export default function FieldsScreen() {
           <Text style={[styles.rowLabel, { color: colors.text }]}>{item.label}</Text>
           {!item.isBuiltIn && (
             <Text style={[styles.rowSub, { color: colors.icon }]}>Anpassat fält</Text>
+          )}
+          {item.isBuiltIn && !item.isVisible && (
+            <Text style={[styles.rowSub, { color: colors.icon }]}>Dolt från formuläret</Text>
           )}
         </View>
 
