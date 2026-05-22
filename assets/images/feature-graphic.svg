@@ -11,7 +11,6 @@
 
   <!-- Waveform decoration — white bars, low opacity, bottom of canvas -->
   <g opacity="0.12" fill="white">
-    <!-- 96 bars, 6px wide, ~4.7px gap, spanning full width -->
     <rect x="0"    y="440" width="6" height="60"/>
     <rect x="11"   y="425" width="6" height="75"/>
     <rect x="22"   y="410" width="6" height="90"/>
@@ -107,48 +106,64 @@
     <rect x="1012" y="472" width="6" height="28"/>
   </g>
 
-  <!-- ── Microphone (left side, white) ────────────────────────────────────── -->
+  <!-- ── Microphone (left, white) ──────────────────────────────────────────── -->
 
-  <!-- Capsule body -->
-  <rect x="130" y="100" width="90" height="145" rx="45" fill="white"/>
+  <rect x="108" y="95" width="88" height="145" rx="44" fill="white"/>
 
-  <!-- Stand arc -->
-  <path d="M 106 210 C 106 330 244 330 244 210"
-        stroke="white" stroke-width="16" fill="none"
+  <path d="M 84 205 C 84 328 280 328 280 205"
+        stroke="white" stroke-width="15" fill="none"
         stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- Stand vertical -->
-  <line x1="175" y1="298" x2="175" y2="345"
-        stroke="white" stroke-width="16" stroke-linecap="round"/>
+  <line x1="152" y1="296" x2="152" y2="340"
+        stroke="white" stroke-width="15" stroke-linecap="round"/>
 
-  <!-- Stand base -->
-  <line x1="128" y1="345" x2="222" y2="345"
-        stroke="white" stroke-width="16" stroke-linecap="round"/>
+  <line x1="106" y1="340" x2="198" y2="340"
+        stroke="white" stroke-width="15" stroke-linecap="round"/>
 
-  <!-- ── Text (right of mic) ───────────────────────────────────────────────── -->
+  <!-- ── Form / document (overlapping, drawn on top of mic stand right side) -->
 
-  <!-- App name -->
-  <text x="300" y="205"
+  <!-- Paper -->
+  <rect x="208" y="148" width="135" height="160" rx="13" fill="white"/>
+
+  <!-- Title strip -->
+  <rect x="226" y="166" width="88" height="12" rx="4" fill="#b2dfdb"/>
+
+  <!-- Field lines -->
+  <line x1="226" y1="200" x2="326" y2="200" stroke="#00897b" stroke-width="8" stroke-linecap="round"/>
+  <line x1="226" y1="224" x2="310" y2="224" stroke="#00897b" stroke-width="8" stroke-linecap="round"/>
+  <line x1="226" y1="248" x2="318" y2="248" stroke="#00897b" stroke-width="8" stroke-linecap="round"/>
+  <line x1="226" y1="272" x2="296" y2="272" stroke="#00897b" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Pen (overlapping form bottom-right) -->
+  <g transform="translate(322,282) rotate(-42)">
+    <rect x="-7" y="-55" width="14" height="72" rx="4" fill="#e0f2f1"/>
+    <rect x="-7" y="-55" width="14" height="16" rx="4" fill="#80cbc4"/>
+    <polygon points="-7,17 7,17 0,35" fill="#004d40"/>
+  </g>
+
+  <!-- ── Text (right half) ─────────────────────────────────────────────────── -->
+
+  <!-- App name — two lines -->
+  <text x="400" y="190"
         font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
-        font-size="82" font-weight="700" fill="white" letter-spacing="-1">
-    Röstinspelning
+        font-size="72" font-weight="700" fill="white" letter-spacing="-0.5">
+    Voice Recorder
+  </text>
+  <text x="400" y="256"
+        font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
+        font-size="48" font-weight="400" fill="white" opacity="0.88">
+    with Notes
   </text>
 
-  <!-- Tagline -->
-  <text x="302" y="260"
-        font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
-        font-size="30" font-weight="400" fill="white" opacity="0.72">
-    för folkmusiker
-  </text>
-
-  <!-- Subtle separator line -->
-  <line x1="300" y1="285" x2="760" y2="285"
+  <!-- Divider -->
+  <line x1="400" y1="282" x2="820" y2="282"
         stroke="white" stroke-width="1" opacity="0.25"/>
 
-  <!-- Feature description -->
-  <text x="302" y="320"
+  <!-- Feature tagline -->
+  <text x="402" y="318"
         font-family="system-ui, -apple-system, Helvetica, Arial, sans-serif"
-        font-size="20" font-weight="400" fill="white" opacity="0.55">
-    Spela in · Anteckna · Organisera
+        font-size="22" font-weight="400" fill="white" opacity="0.60"
+        letter-spacing="1">
+    Record · Annotate · Organise
   </text>
 </svg>
