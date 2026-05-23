@@ -167,20 +167,38 @@ function createDb() {
         return { lastInsertRowId: id, changes: 1 };
       }
 
-      // UPDATE table SET col=?,... WHERE col=?
+      // UPDATE table SET col=expr,... WHERE expr
       if (/^UPDATE/i.test(s)) {
-        const m = s.match(/UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE\s+(\w+)\s*=\s*\?/i);
+        const m = s.match(/UPDATE\s+(\w+)\s+SET\s+(.+?)\s+WHERE\s+(.+)/i);
         if (!m) return { changes: 0 };
-        const [, table, setStr, whereCol] = m;
-        const setCols = setStr.split(',').map(part => part.trim().match(/^(\w+)/)[1]);
-        const whereVal = params[setCols.length];
+        const [, table, setStr, whereStr] = m;
+
+        // Parse SET: each col = ? | 'literal' | number
+        let paramIdx = 0;
+        const setOps = setStr.split(',').map(part => {
+          const pm = part.trim().match(/^(\w+)\s*=\s*(.+)$/);
+          if (!pm) return null;
+          const [, col, valExpr] = pm;
+          const v = valExpr.trim();
+          if (v === '?') return { col, paramIdx: paramIdx++ };
+          const strLit = v.match(/^'(.*)'$/);
+          if (strLit) return { col, literal: strLit[1] };
+          if (/^-?\d+$/.test(v)) return { col, literal: parseInt(v, 10) };
+          return { col, literal: v };
+        }).filter(Boolean);
+
+        const whereResolved = resolveWhere(whereStr, params.slice(paramIdx));
         const rows = getRows(table);
+        let changes = 0;
         rows.forEach(row => {
-          if (String(row[whereCol]) === String(whereVal)) {
-            setCols.forEach((col, i) => { row[col] = params[i]; });
+          if (evalWhere(whereResolved, row)) {
+            setOps.forEach(({ col, paramIdx: pi, literal }) => {
+              row[col] = pi !== undefined ? params[pi] : literal;
+            });
+            changes++;
           }
         });
-        return { changes: 1 };
+        return { changes };
       }
 
       // DELETE FROM table [WHERE ...]
@@ -212,6 +230,18 @@ function createDb() {
         const rows = getRows(table);
         const max = rows.reduce((mx, r) => Math.max(mx, r[col] ?? -1), -1);
         return [{ [alias]: rows.length === 0 ? null : max }];
+      }
+
+      // Aggregate: SELECT COUNT(*) AS alias FROM table [WHERE ...]
+      const cntMatch = s.match(/SELECT\s+COUNT\(\*\)\s+AS\s+(\w+)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?$/i);
+      if (cntMatch) {
+        const [, alias, table, whereStr] = cntMatch;
+        let rows = [...getRows(table)];
+        if (whereStr) {
+          const resolved = resolveWhere(whereStr, params);
+          rows = rows.filter(r => evalWhere(resolved, r));
+        }
+        return [{ [alias]: rows.length }];
       }
 
       // Extract table name

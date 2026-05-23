@@ -30,6 +30,8 @@ import {
   deleteTagColor,
   getAllTagColors,
   renameTag,
+  countRecordingsWithBuiltInFieldData,
+  clearBuiltInFieldData,
 } from '../lib/db';
 
 // Shared fixture factory
@@ -481,5 +483,74 @@ describe('renameTag', () => {
     renameTag('Vals', 'Waltz');
     const r = getRecordingById(id)!;
     expect(JSON.parse(r.tags)).toEqual(['Polska']);
+  });
+});
+
+// ── countRecordingsWithBuiltInFieldData ───────────────────────────────────────
+
+describe('countRecordingsWithBuiltInFieldData', () => {
+  const base = { ofAfter: '', origin: '', songType: '', performer: '', notes: '',
+    filePath: '/f.m4a', duration: 5, createdAt: '2025-01-01T00:00:00Z', customData: '{}' };
+
+  it('returns 0 for an unknown field key', () => {
+    expect(countRecordingsWithBuiltInFieldData('nonexistent')).toBe(0);
+  });
+
+  it('inserting a recording with empty field does not increase the count', () => {
+    const before = countRecordingsWithBuiltInFieldData('origin');
+    insertRecording({ ...base, name: 'CountTest-empty', origin: '' });
+    expect(countRecordingsWithBuiltInFieldData('origin')).toBe(before);
+  });
+
+  it('counts only recordings with non-empty data', () => {
+    const before = countRecordingsWithBuiltInFieldData('songType');
+    insertRecording({ ...base, name: 'CountTest-has-songtype', songType: 'Polska' });
+    insertRecording({ ...base, name: 'CountTest-no-songtype', songType: '' });
+    expect(countRecordingsWithBuiltInFieldData('songType')).toBe(before + 1);
+  });
+
+  it('counts performer field correctly', () => {
+    const before = countRecordingsWithBuiltInFieldData('performer');
+    insertRecording({ ...base, name: 'CountTest-performer', performer: 'Anna' });
+    expect(countRecordingsWithBuiltInFieldData('performer')).toBe(before + 1);
+  });
+});
+
+// ── clearBuiltInFieldData ─────────────────────────────────────────────────────
+
+describe('clearBuiltInFieldData', () => {
+  const base = { ofAfter: '', origin: '', songType: '', performer: '', notes: '',
+    filePath: '/f.m4a', duration: 5, createdAt: '2025-01-01T00:00:00Z', customData: '{}' };
+
+  it('does nothing for an unknown field key', () => {
+    const before = getAllRecordings().length;
+    clearBuiltInFieldData('nonexistent');
+    expect(getAllRecordings().length).toBe(before);
+  });
+
+  it('clears the specified column in all recordings', () => {
+    const id1 = insertRecording({ ...base, name: 'ClearTest-1', notes: 'Keep this' });
+    const id2 = insertRecording({ ...base, name: 'ClearTest-2', notes: 'And this' });
+    const id3 = insertRecording({ ...base, name: 'ClearTest-3', notes: '' });
+
+    clearBuiltInFieldData('notes');
+
+    expect(getRecordingById(id1)!.notes).toBe('');
+    expect(getRecordingById(id2)!.notes).toBe('');
+    expect(getRecordingById(id3)!.notes).toBe('');
+  });
+
+  it('does not affect other columns', () => {
+    const id = insertRecording({ ...base, name: 'ClearTest-other', ofAfter: 'efter Erik', origin: 'Dalarna' });
+    clearBuiltInFieldData('ofAfter');
+    const r = getRecordingById(id)!;
+    expect(r.ofAfter).toBe('');
+    expect(r.origin).toBe('Dalarna');
+  });
+
+  it('count drops to 0 after clearing', () => {
+    insertRecording({ ...base, name: 'ClearTest-count', performer: 'Björn' });
+    clearBuiltInFieldData('performer');
+    expect(countRecordingsWithBuiltInFieldData('performer')).toBe(0);
   });
 });

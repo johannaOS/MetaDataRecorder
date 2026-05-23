@@ -264,6 +264,29 @@ export function deleteCustomField(key: string) {
   db.runSync('DELETE FROM fields WHERE key = ? AND isBuiltIn = 0', key);
 }
 
+const BUILT_IN_COLUMNS: Record<string, string> = {
+  ofAfter: 'ofAfter',
+  origin: 'origin',
+  songType: 'songType',
+  performer: 'performer',
+  notes: 'notes',
+};
+
+export function countRecordingsWithBuiltInFieldData(fieldKey: string): number {
+  const col = BUILT_IN_COLUMNS[fieldKey];
+  if (!col) return 0;
+  const row = db.getFirstSync(
+    `SELECT COUNT(*) AS cnt FROM recordings WHERE ${col} != ''`
+  ) as { cnt: number } | null;
+  return row?.cnt ?? 0;
+}
+
+export function clearBuiltInFieldData(fieldKey: string): void {
+  const col = BUILT_IN_COLUMNS[fieldKey];
+  if (!col) return;
+  db.runSync(`UPDATE recordings SET ${col} = '' WHERE ${col} != ''`);
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // ── Keyword CRUD ──────────────────────────────────────────────────────────────

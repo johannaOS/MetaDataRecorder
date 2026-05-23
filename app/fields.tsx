@@ -19,6 +19,8 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   addCustomField,
+  clearBuiltInFieldData,
+  countRecordingsWithBuiltInFieldData,
   deleteCustomField,
   FieldConfig,
   getAllFields,
@@ -67,19 +69,35 @@ export default function FieldsScreen() {
         Alert.alert(field.label, S.titleFieldRequired);
         return;
       }
-      // Non-title built-in fields can be hidden from or restored to the form
-      Alert.alert(
-        field.label,
-        field.isVisible ? S.removeBuiltInConfirm : S.removeBuiltInConfirm,
-        [
+      if (!field.isVisible) {
+        Alert.alert(field.label, S.removeBuiltInConfirm, [
           { text: S.cancel, style: 'cancel' },
           {
-            text: field.isVisible ? S.removeFromForm : S.restoreField,
-            style: field.isVisible ? 'destructive' : 'default',
-            onPress: () => { updateFieldVisibility(field.key, !field.isVisible); reload(); },
+            text: S.restoreField,
+            onPress: () => { updateFieldVisibility(field.key, true); reload(); },
           },
-        ]
-      );
+        ]);
+        return;
+      }
+      // Visible non-title built-in field: offer permanent deletion with data warning
+      const builtInCount = countRecordingsWithBuiltInFieldData(field.key);
+      const builtInMessage = builtInCount > 0
+        ? builtInCount === 1
+          ? `1 inspelning har data i fältet "${field.label}". Om du raderar fältet tas denna data bort permanent.`
+          : `${builtInCount} inspelningar har data i fältet "${field.label}". Om du raderar fältet tas all denna data bort permanent.`
+        : `Radera fältet "${field.label}"?`;
+      Alert.alert(field.label, builtInMessage, [
+        { text: S.cancel, style: 'cancel' },
+        {
+          text: S.delete,
+          style: 'destructive',
+          onPress: () => {
+            clearBuiltInFieldData(field.key);
+            updateFieldVisibility(field.key, false);
+            reload();
+          },
+        },
+      ]);
       return;
     }
 

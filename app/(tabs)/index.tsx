@@ -31,7 +31,16 @@ import {
   showRecordingNotification,
 } from '@/lib/backgroundRecording';
 import * as TaskManager from 'expo-task-manager';
-import { getAllUniqueTags, insertRecording } from '@/lib/db';
+import {
+  clearBuiltInFieldData,
+  countRecordingsWithBuiltInFieldData,
+  deleteCustomField,
+  getAllRecordings,
+  getAllUniqueTags,
+  insertRecording,
+  parseCustomData,
+  updateFieldVisibility,
+} from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { tagColor } from '@/lib/tagColors';
 import { commitPendingTag } from '@/lib/tagUtils';
@@ -483,6 +492,36 @@ export default function RecorderScreen() {
 
   function discardForm() { setIsFormExpanded(false); }
 
+  function handleFieldLongPress(key: string, label: string, isBuiltIn: boolean) {
+    if (isBuiltIn) {
+      if (key === 'name') { Alert.alert(label, S.titleFieldRequired); return; }
+      const count = countRecordingsWithBuiltInFieldData(key);
+      const message = count > 0
+        ? count === 1
+          ? `1 inspelning har data i fältet "${label}". Om du raderar fältet tas denna data bort permanent.`
+          : `${count} inspelningar har data i fältet "${label}". Om du raderar fältet tas all denna data bort permanent.`
+        : `Radera fältet "${label}"?`;
+      Alert.alert(label, message, [
+        { text: S.cancel, style: 'cancel' },
+        { text: S.delete, style: 'destructive', onPress: () => { clearBuiltInFieldData(key); updateFieldVisibility(key, false); reloadFieldConfigs(); } },
+      ]);
+      return;
+    }
+    const count = getAllRecordings().filter(r => {
+      const data = parseCustomData(r.customData);
+      return data[key] != null && String(data[key]).trim() !== '';
+    }).length;
+    const message = count > 0
+      ? count === 1
+        ? `1 inspelning har data i fältet "${label}". Om du raderar fältet tas denna data bort permanent.`
+        : `${count} inspelningar har data i fältet "${label}". Om du raderar fältet tas all denna data bort permanent.`
+      : `${S.deleteField}?`;
+    Alert.alert(label, message, [
+      { text: S.cancel, style: 'cancel' },
+      { text: S.delete, style: 'destructive', onPress: () => { deleteCustomField(key); reloadFieldConfigs(); } },
+    ]);
+  }
+
   function prependFormOfAfter(word: string) {
     formOfAfterLockedRef.current = true; setFormOfAfterIsAuto(false);
     const prefix = word + ' ';
@@ -534,7 +573,9 @@ export default function RecorderScreen() {
 
             {/* Built-in fields — each hidden when the field is disabled in field management */}
             {(!visibleFieldKeys || visibleFieldKeys.has('name')) && (<>
-              <Text style={[styles.formLabel, { color: colors.icon }]}>{S.fieldTitle}</Text>
+              <TouchableOpacity onLongPress={() => handleFieldLongPress('name', S.fieldTitle, true)} delayLongPress={400}>
+                <Text style={[styles.formLabel, { color: colors.icon }]}>{S.fieldTitle}</Text>
+              </TouchableOpacity>
               <TextInput
                 style={formInputStyle}
                 placeholder={S.placeholderUntitled}
@@ -549,6 +590,9 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('ofAfter')) && (<>
+              <TouchableOpacity onLongPress={() => handleFieldLongPress('ofAfter', S.fieldOfAfter, true)} delayLongPress={400}>
+                <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldOfAfter} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              </TouchableOpacity>
               <View style={styles.formChips}>
                 {(['efter', 'av', 'Trad.'] as const).map(word => (
                   <TouchableOpacity key={word} style={[styles.chip, { borderColor: colors.text }]} onPress={() => prependFormOfAfter(word)}>
@@ -570,7 +614,9 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('origin')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldFrom} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              <TouchableOpacity onLongPress={() => handleFieldLongPress('origin', S.fieldFrom, true)} delayLongPress={400}>
+                <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldFrom} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              </TouchableOpacity>
               <TextInput ref={formOriginRef} style={formInputStyle} placeholder={S.placeholderFrom}
                 placeholderTextColor={colors.icon} value={formOrigin}
                 onChangeText={t => { formOriginLockedRef.current = true; setFormOrigin(t); }}
@@ -579,7 +625,9 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('songType')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              <TouchableOpacity onLongPress={() => handleFieldLongPress('songType', S.fieldSongType, true)} delayLongPress={400}>
+                <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              </TouchableOpacity>
               <TextInput ref={formSongTypeRef} style={[formInputStyle, formSongTypeIsAuto && { color: colors.icon }]}
                 placeholder={S.placeholderSongType} placeholderTextColor={colors.icon}
                 value={formSongType} onChangeText={t => { formSongTypeLockedRef.current = true; setFormSongTypeIsAuto(false); setFormSongType(t); }}
@@ -588,7 +636,9 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('performer')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldWhosPlaying} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              <TouchableOpacity onLongPress={() => handleFieldLongPress('performer', S.fieldWhosPlaying, true)} delayLongPress={400}>
+                <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldWhosPlaying} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              </TouchableOpacity>
               <TextInput ref={formPerformerRef} style={formInputStyle} placeholder={S.placeholderPerformer}
                 placeholderTextColor={colors.icon} value={formPerformer} onChangeText={setFormPerformer}
                 onFocus={() => { lastFocusedFieldRef.current = 'performer'; }}
@@ -596,7 +646,9 @@ export default function RecorderScreen() {
             </>)}
 
             {(!visibleFieldKeys || visibleFieldKeys.has('notes')) && (<>
-              <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldNotes} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              <TouchableOpacity onLongPress={() => handleFieldLongPress('notes', S.fieldNotes, true)} delayLongPress={400}>
+                <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldNotes} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              </TouchableOpacity>
               <TextInput ref={formNotesRef} style={[formInputStyle, styles.formNotesInput]}
                 placeholder={S.placeholderNotes} placeholderTextColor={colors.icon}
                 value={formNotes} onChangeText={setFormNotes}
@@ -663,7 +715,9 @@ export default function RecorderScreen() {
             {/* Custom fields — visibility already controlled by fieldConfigs */}
             {fieldConfigs.filter(f => !f.isBuiltIn).map(field => (
               <View key={field.key}>
-                <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{field.label}</Text>
+                <TouchableOpacity onLongPress={() => handleFieldLongPress(field.key, field.label, false)} delayLongPress={400}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{field.label}</Text>
+                </TouchableOpacity>
                 <TextInput
                   style={formInputStyle}
                   placeholderTextColor={colors.icon}
