@@ -111,6 +111,8 @@ export default function DetailScreen() {
         setEditPerformer(r.performer);
         setEditNotes(r.notes);
         setEditCustomValues(parseCustomData(r.customData));
+        setEditTags(parseTags(r.tags));
+        setAllTags(getAllUniqueTags());
         setIsEditing(true);
       }
     }
@@ -598,9 +600,11 @@ export default function DetailScreen() {
                     );
                   })}
                 </View>
-                {/* Suggestions from existing tags */}
+                {/* Suggestions — horizontal scroll handles many tags without layout explosion */}
                 {allTags.filter(t => !editTags.includes(t)).length > 0 && (
-                  <View style={styles.tagsRow}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                    style={{ marginBottom: 6 }}
+                    contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
                     {allTags.filter(t => !editTags.includes(t)).map(tag => {
                       const tc = tagColor(tag);
                       return (
@@ -610,7 +614,7 @@ export default function DetailScreen() {
                         </TouchableOpacity>
                       );
                     })}
-                  </View>
+                  </ScrollView>
                 )}
                 <TextInput
                   style={[styles.editInput, { color: colors.text, borderColor: colors.icon + '55', backgroundColor: colors.background }]}

@@ -490,7 +490,9 @@ export default function MetadataScreen() {
             </View>
           )}
           {allExistingTags.filter(t => !tags.includes(t)).length > 0 && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 8 }}
+              contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
               {allExistingTags.filter(t => !tags.includes(t)).map(tag => {
                 const tc = tagColor(tag);
                 return (
@@ -500,7 +502,7 @@ export default function MetadataScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
           )}
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.icon + '55', backgroundColor: colors.background }]}

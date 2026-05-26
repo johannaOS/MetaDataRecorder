@@ -678,9 +678,11 @@ export default function RecorderScreen() {
               </View>
             )}
 
-            {/* Existing tags not yet selected — tap to add */}
+            {/* Existing tags not yet selected — horizontal scroll handles many tags without layout explosion */}
             {allExistingTags.filter(t => !formTags.includes(t)).length > 0 && (
-              <View style={styles.formTagChips}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                style={{ marginBottom: 8 }}
+                contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
                 {allExistingTags.filter(t => !formTags.includes(t)).map(tag => {
                   const tc = tagColor(tag);
                   return (
@@ -693,7 +695,7 @@ export default function RecorderScreen() {
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
             )}
 
             {/* New tag text input */}
