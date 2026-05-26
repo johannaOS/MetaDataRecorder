@@ -167,6 +167,10 @@ export function updateRecording(
   db.runSync(`UPDATE recordings SET ${fieldsList} WHERE id = ?`, ...values, id);
 }
 
+export function updateRecordingDuration(id: number, duration: number) {
+  db.runSync('UPDATE recordings SET duration = ? WHERE id = ?', duration, id);
+}
+
 export function getAllUniqueTags(): string[] {
   const rows = db.getAllSync(
     "SELECT tags FROM recordings WHERE tags != '[]' AND tags != ''"

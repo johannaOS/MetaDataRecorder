@@ -11,6 +11,7 @@ import {
   getAllRecordings,
   getRecordingById,
   updateRecording,
+  updateRecordingDuration,
   deleteRecording,
   getUniqueSongTypes,
   MAX_FIELDS,
@@ -552,5 +553,28 @@ describe('clearBuiltInFieldData', () => {
     insertRecording({ ...base, name: 'ClearTest-count', performer: 'Björn' });
     clearBuiltInFieldData('performer');
     expect(countRecordingsWithBuiltInFieldData('performer')).toBe(0);
+  });
+});
+
+// ── updateRecordingDuration ───────────────────────────────────────────────────
+
+describe('updateRecordingDuration', () => {
+  it('updates the duration of a recording', () => {
+    const id = insertRecording({ name: 'DurTest-1', ofAfter: '', origin: '', songType: '',
+      performer: '', notes: '', filePath: '/dur.m4a', duration: 0,
+      createdAt: '2025-01-01T00:00:00Z', customData: '{}' });
+    updateRecordingDuration(id, 123);
+    expect(getRecordingById(id)!.duration).toBe(123);
+  });
+
+  it('does not affect other fields', () => {
+    const id = insertRecording({ name: 'DurTest-2', ofAfter: 'efter Erik', origin: 'Dalarna',
+      songType: 'Polska', performer: 'Anna', notes: 'test', filePath: '/dur2.m4a',
+      duration: 0, createdAt: '2025-01-01T00:00:00Z', customData: '{}' });
+    updateRecordingDuration(id, 77);
+    const r = getRecordingById(id)!;
+    expect(r.duration).toBe(77);
+    expect(r.name).toBe('DurTest-2');
+    expect(r.origin).toBe('Dalarna');
   });
 });

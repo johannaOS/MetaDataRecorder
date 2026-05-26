@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllTagColors, getAllUniqueTags, insertRecording, Keyword, parseTags, Recording, renameTag, setTagColor, deleteTagColor, updateRecording } from '@/lib/db';
+import { addKeyword, deleteKeyword, deleteRecording, getAllKeywords, getAllRecordings, getAllTagColors, getAllUniqueTags, insertRecording, Keyword, parseTags, Recording, renameTag, setTagColor, deleteTagColor, updateRecording, updateRecordingDuration } from '@/lib/db';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { PALETTE, tagColor } from '@/lib/tagColors';
 import { exportAudioFilesOnly, exportRecordingsAsZip } from '@/lib/exportZip';
@@ -298,11 +298,11 @@ export default function LibraryScreen() {
           },
         });
       } else {
-        // Multiple files → batch import. Duration probing is skipped for speed
-        // (400 files × ~1s probe = too slow). Duration stays 0 in the library list.
+        // Phase 1: insert all files fast (no probing) — files appear in library immediately
         const total = assets.length;
         let count = 0;
         setImportProgress({ done: 0, total });
+        const inserted: { id: number; filePath: string }[] = [];
         for (const asset of assets) {
           try {
             const name = (asset.name?.replace(/\.[^.]+$/, '') ?? S.untitled).trim() || S.untitled;
@@ -310,24 +310,35 @@ export default function LibraryScreen() {
             const createdAt = asset.lastModified
               ? new Date(asset.lastModified).toISOString()
               : new Date().toISOString();
-            insertRecording({
+            const id = insertRecording({
               name, filePath: finalUri, duration: 0,
               createdAt,
               ofAfter: '', origin: '', songType: '', performer: '', notes: '',
               customData: '{}', tags: '[]',
             });
+            inserted.push({ id, filePath: finalUri });
             count++;
           } catch (e) {
             Sentry.captureException(e, { tags: { flow: 'importAudioBatch' } });
           }
           setImportProgress({ done: count, total });
-          // Reload every 50 files so items appear progressively
           if (count % 50 === 0) reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
         }
         setImportProgress(null);
         reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
         if (count > 0) Alert.alert(`${count} ${count === 1 ? 'fil importerad' : S.importedMultiple}`, S.importedMessage);
-        else Alert.alert(S.error, S.couldNotImport);
+        else { Alert.alert(S.error, S.couldNotImport); return; }
+
+        // Phase 2: probe durations in parallel batches of 5 — fills in lengths after import
+        const PROBE_BATCH = 5;
+        for (let i = 0; i < inserted.length; i += PROBE_BATCH) {
+          const batch = inserted.slice(i, i + PROBE_BATCH);
+          await Promise.all(batch.map(async ({ id, filePath }) => {
+            const dur = await probeAudioDuration(filePath);
+            if (dur > 0) updateRecordingDuration(id, dur);
+          }));
+          reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
+        }
       }
     } catch (e) {
       Sentry.captureException(e, { tags: { flow: 'importAudio' } });
