@@ -197,6 +197,7 @@ export default function LibraryScreen() {
   // to <Stack.Screen> — it updates immediately when state changes.
   useEffect(() => {
     if (isSelecting) {
+      const singleId = selectedIds.size === 1 ? [...selectedIds][0] : null;
       navigation.setOptions({
         headerLeft: () => (
           <TouchableOpacity onPress={cancelSelection} hitSlop={8} style={{ padding: 4 }}>
@@ -206,6 +207,14 @@ export default function LibraryScreen() {
         headerTitle: `${selectedIds.size} ${selectedIds.size === 1 ? 'vald' : 'valda'}`,
         headerRight: () => (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            {singleId !== null && (
+              <TouchableOpacity
+                onPress={() => { cancelSelection(); router.push({ pathname: '/detail/[id]', params: { id: String(singleId), openEdit: '1' } }); }}
+                hitSlop={8} style={{ padding: 4 }}
+              >
+                <Ionicons name="pencil-outline" size={22} color={colors.tint} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => { setTagModalInput(''); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
               <Ionicons name="pricetag-outline" size={22} color={colors.tint} />
             </TouchableOpacity>

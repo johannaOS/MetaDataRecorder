@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { clearActiveRecording, getActiveRecording } from '@/lib/activeRecording';
-import { FieldConfig, insertRecording } from '@/lib/db';
+import { FieldConfig, getAllUniqueTags, insertRecording } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
@@ -80,7 +80,10 @@ export default function MetadataScreen() {
     try { return JSON.parse(preFilledTags || '[]'); } catch { return []; }
   });
   const [tagInput, setTagInput] = useState('');
+  const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
   const [fieldConfigs] = useFieldConfig();
+
+  useEffect(() => { setAllExistingTags(getAllUniqueTags()); }, []);
 
   // ── Intercept hardware back button to show discard confirmation (Bug 3) ───────
   useFocusEffect(
@@ -481,6 +484,19 @@ export default function MetadataScreen() {
                   <TouchableOpacity key={tag} onPress={() => setTags(prev => prev.filter(t => t !== tag))}
                     style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: tc.bg }}>
                     <Text style={{ fontSize: 13, fontWeight: '500', color: tc.text }}>{tag} ✕</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+          {allExistingTags.filter(t => !tags.includes(t)).length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {allExistingTags.filter(t => !tags.includes(t)).map(tag => {
+                const tc = tagColor(tag);
+                return (
+                  <TouchableOpacity key={tag} onPress={() => setTags(prev => [...prev, tag])}
+                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: tc.bg, borderWidth: 1, borderStyle: 'dashed', borderColor: tc.text + '55' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: tc.text, opacity: 0.7 }}>{tag}</Text>
                   </TouchableOpacity>
                 );
               })}
