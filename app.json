@@ -84,14 +84,6 @@
       ],
       "expo-sqlite",
       [
-        "expo-media-library",
-        {
-          "photosPermission": "Allow Voice Recorder with Metadata to save recordings to your Music library.",
-          "savePhotosPermission": "Allow Voice Recorder with Metadata to save recordings to your Music library.",
-          "isAccessMediaLocationEnabled": true
-        }
-      ],
-      [
         "@sentry/react-native/expo",
         {
           "url": "https://sentry.io/",
