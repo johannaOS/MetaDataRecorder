@@ -54,6 +54,7 @@ function buildContent(timestamp: number) {
       asForegroundService: true,
       ongoing: true,
       importance: AndroidImportance.DEFAULT,
+      pressAction: { id: 'default', launchActivity: 'default' as const },
       timestamp,
       showChronometer: true,
       actions: [
@@ -108,6 +109,7 @@ export async function showPlaybackNotification(title: string): Promise<void> {
         asForegroundService: true,
         ongoing: true,
         importance: AndroidImportance.LOW,
+        pressAction: { id: 'default', launchActivity: 'default' as const },
       },
     });
   } catch (e) {
