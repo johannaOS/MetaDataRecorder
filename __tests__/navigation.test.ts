@@ -91,7 +91,6 @@ jest.mock('expo-file-system', () => ({
   Directory: class { create() {} list() { return []; } },
   Paths: { document: 'file:///documents/', cache: 'file:///cache/' },
 }));
-jest.mock('expo-media-library', () => ({}));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
 }));
