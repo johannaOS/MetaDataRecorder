@@ -454,12 +454,21 @@ export default function DetailScreen() {
         >
           {/* ── Player ─────────────────────────────────────────────────────── */}
           <View style={[styles.player, { borderBottomColor: colors.icon + '28' }]}>
-            {/* Time row — large centred time while scrubbing, start/end otherwise */}
+            {/* Time row — large centred time while scrubbing, start/speed/end otherwise */}
             {seekPositionMs !== null ? (
               <Text style={[styles.seekTime, { color: colors.text }]}>{formatMs(positionMs)}</Text>
             ) : (
               <View style={styles.timeRow}>
                 <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(positionMs)}</Text>
+                <TouchableOpacity
+                  onPress={() => setShowSpeedPanel(v => !v)}
+                  activeOpacity={0.7}
+                  style={styles.speedBtn}
+                >
+                  <Text style={[styles.speedBtnText, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
+                    ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
+                  </Text>
+                </TouchableOpacity>
                 <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
               </View>
             )}
@@ -496,17 +505,6 @@ export default function DetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Speed button + expandable panel */}
-            <TouchableOpacity
-              style={styles.speedBtn}
-              onPress={() => setShowSpeedPanel(v => !v)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.speedBtnText, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
-                ×{playbackRate % 1 === 0 ? playbackRate.toFixed(0) : playbackRate}
-              </Text>
-            </TouchableOpacity>
-
             {showSpeedPanel && (
               <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
                 <View style={styles.speedPresets}>
@@ -529,7 +527,7 @@ export default function DetailScreen() {
                 <View style={styles.speedSliderRow}>
                   <TouchableOpacity
                     style={[styles.speedStepBtn, { borderColor: colors.icon + '44', opacity: playbackRate <= 0.5 ? 0.3 : 1 }]}
-                    onPress={() => applyRate(Math.max(0.5, playbackRate - 0.25))}
+                    onPress={() => applyRate(Math.max(0.5, playbackRate - 0.05))}
                     disabled={playbackRate <= 0.5}
                   >
                     <Text style={[styles.speedStepText, { color: colors.text }]}>−</Text>
@@ -538,7 +536,7 @@ export default function DetailScreen() {
                     style={styles.speedSlider}
                     minimumValue={0.5}
                     maximumValue={2.0}
-                    step={0.25}
+                    step={0.01}
                     value={playbackRate}
                     minimumTrackTintColor={colors.tint}
                     maximumTrackTintColor={colors.icon + '44'}
@@ -547,7 +545,7 @@ export default function DetailScreen() {
                   />
                   <TouchableOpacity
                     style={[styles.speedStepBtn, { borderColor: colors.icon + '44', opacity: playbackRate >= 2.0 ? 0.3 : 1 }]}
-                    onPress={() => applyRate(Math.min(2.0, playbackRate + 0.25))}
+                    onPress={() => applyRate(Math.min(2.0, playbackRate + 0.05))}
                     disabled={playbackRate >= 2.0}
                   >
                     <Text style={[styles.speedStepText, { color: colors.text }]}>+</Text>
@@ -861,14 +859,12 @@ const styles = StyleSheet.create({
   actionBtnSecondaryText: { fontSize: 16, fontWeight: '500' },
 
   speedBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   speedBtnText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
