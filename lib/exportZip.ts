@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import JSZip from 'jszip';
 import * as Sharing from 'expo-sharing';
 
-import { Recording, parseTags } from './db';
+import { getAttachmentsByRecording, Recording, parseTags } from './db';
 
 // ── Filename helpers ──────────────────────────────────────────────────────────
 
@@ -145,6 +145,7 @@ export async function exportRecordingsAsZip(
 ): Promise<void> {
   const zip = new JSZip();
   const audioFolder = zip.folder('audio')!;
+  const attachFolder = zip.folder('bilagor')!;
   const usedNames = new Set<string>();
 
   const rows: { rec: Recording; filename: string }[] = recordings.map(rec => ({
@@ -152,7 +153,7 @@ export async function exportRecordingsAsZip(
     filename: buildZipFilename(rec, usedNames),
   }));
 
-  // Add audio files
+  // Add audio files + attachments per recording
   for (let i = 0; i < rows.length; i++) {
     const { rec, filename } = rows[i];
     try {
@@ -161,6 +162,18 @@ export async function exportRecordingsAsZip(
     } catch {
       // File unreadable — still included in CSV so the row isn't silently dropped
     }
+
+    const attachments = getAttachmentsByRecording(rec.id);
+    if (attachments.length > 0) {
+      const recFolder = attachFolder.folder(filename.replace(/\.[^.]+$/, ''))!;
+      for (const att of attachments) {
+        try {
+          const attData = await readBase64(att.uri);
+          recFolder.file(att.file_name, attData, { base64: true });
+        } catch { /* skip unreadable attachment */ }
+      }
+    }
+
     onProgress?.(i + 1, rows.length);
   }
 
