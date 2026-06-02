@@ -659,7 +659,7 @@ export default function DetailScreen() {
             {/* Controls row: add-bookmark · skip-5 · play/pause · skip+5 · A · B [· clear] */}
             <View style={styles.controls}>
               <TouchableOpacity onPress={handleAddBookmark} hitSlop={10} activeOpacity={0.7}>
-                <Ionicons name="repeat" size={26} color={colors.tint} />
+                <Ionicons name="bookmark-outline" size={26} color={colors.tint} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
