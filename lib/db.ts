@@ -353,6 +353,10 @@ export function deleteBookmark(id: number) {
   db.runSync('DELETE FROM bookmarks WHERE id = ?', id);
 }
 
+export function updateBookmarkLabel(id: number, label: string) {
+  db.runSync('UPDATE bookmarks SET label = ? WHERE id = ?', label, id);
+}
+
 // ── Install ID ───────────────────────────────────────────────────────────────
 // A random UUID generated on first launch and persisted locally.
 // Used for Sentry device grouping without sending any personal identifier.

@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Bookmark, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getBookmarksByRecording, getRecordingById, insertBookmark, Keyword, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
+import { Bookmark, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getBookmarksByRecording, getRecordingById, insertBookmark, Keyword, parseCustomData, parseTags, Recording, updateBookmarkLabel, updateRecording } from '@/lib/db';
 import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
@@ -110,6 +110,8 @@ export default function DetailScreen() {
   const loopARef = useRef<number | null>(null);
   const loopBRef = useRef<number | null>(null);
   const [markerBarWidth, setMarkerBarWidth] = useState(0);
+  const [renamingBookmark, setRenamingBookmark] = useState<Bookmark | null>(null);
+  const [renameLabel, setRenameLabel] = useState('');
 
   // Load recording on mount
   useEffect(() => {
@@ -283,6 +285,14 @@ export default function DetailScreen() {
 
   function handleDeleteBookmark(bmId: number) {
     deleteBookmark(bmId);
+    reloadBookmarks();
+  }
+
+  function handleRenameBookmark() {
+    if (!renamingBookmark) return;
+    const label = renameLabel.trim();
+    if (label) updateBookmarkLabel(renamingBookmark.id, label);
+    setRenamingBookmark(null);
     reloadBookmarks();
   }
 
@@ -512,7 +522,7 @@ export default function DetailScreen() {
                 <TouchableOpacity
                   onPress={() => setShowSpeedPanel(v => !v)}
                   activeOpacity={0.7}
-                  style={styles.speedBtn}
+                  style={[styles.speedBtn, { borderColor: playbackRate !== 1.0 ? colors.tint : colors.icon + '44' }]}
                 >
                   <Text style={[styles.speedBtnText, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
                     ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
@@ -536,8 +546,9 @@ export default function DetailScreen() {
                       onPress={() => onSeekComplete(bm.position_ms)}
                       onLongPress={() => Alert.alert(bm.label, undefined, [
                         { text: S.cancel, style: 'cancel' },
-                        { text: 'Set as A', onPress: () => setLoop('A', bm.position_ms) },
-                        { text: 'Set as B', onPress: () => setLoop('B', bm.position_ms) },
+                        { text: 'Byt namn', onPress: () => { setRenameLabel(bm.label); setRenamingBookmark(bm); } },
+                        { text: 'Sätt som A', onPress: () => setLoop('A', bm.position_ms) },
+                        { text: 'Sätt som B', onPress: () => setLoop('B', bm.position_ms) },
                         { text: S.delete, style: 'destructive', onPress: () => handleDeleteBookmark(bm.id) },
                       ])}
                       hitSlop={10}
@@ -584,8 +595,11 @@ export default function DetailScreen() {
               onValueChange={(v) => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
               onSlidingComplete={onSeekComplete}
             />
-            {/* Controls row: skip back · play/pause · skip forward */}
+            {/* Controls row: add-bookmark · skip-5 · play/pause · skip+5 · A · B [· clear] */}
             <View style={styles.controls}>
+              <TouchableOpacity onPress={handleAddBookmark} hitSlop={10} activeOpacity={0.7}>
+                <Ionicons name="repeat" size={26} color={colors.tint} />
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
                 hitSlop={12}
@@ -603,20 +617,6 @@ export default function DetailScreen() {
               >
                 <MaterialIcons name="forward-5" size={34} color={colors.icon} />
               </TouchableOpacity>
-            </View>
-
-            {/* Bookmark + A/B loop controls */}
-            <View style={[styles.loopRow, { borderTopColor: colors.icon + '22' }]}>
-              {/* Bookmark button */}
-              <TouchableOpacity
-                style={[styles.loopBtn, { borderColor: colors.icon + '44' }]}
-                onPress={handleAddBookmark}
-                hitSlop={8}
-              >
-                <Ionicons name="bookmark-outline" size={16} color={colors.tint} />
-              </TouchableOpacity>
-
-              {/* A button */}
               <TouchableOpacity
                 style={[styles.loopBtn, loopA !== null
                   ? { borderColor: '#00A878', backgroundColor: '#00A87818' }
@@ -626,11 +626,9 @@ export default function DetailScreen() {
                 hitSlop={8}
               >
                 <Text style={[styles.loopBtnText, { color: loopA !== null ? '#00A878' : colors.icon }]}>
-                  {loopA !== null ? `A ${formatMs(loopA)}` : 'A'}
+                  {loopA !== null ? `A·${formatMs(loopA)}` : 'A'}
                 </Text>
               </TouchableOpacity>
-
-              {/* B button */}
               <TouchableOpacity
                 style={[styles.loopBtn, loopB !== null
                   ? { borderColor: '#e53935', backgroundColor: '#e5393518' }
@@ -640,18 +638,12 @@ export default function DetailScreen() {
                 hitSlop={8}
               >
                 <Text style={[styles.loopBtnText, { color: loopB !== null ? '#e53935' : colors.icon }]}>
-                  {loopB !== null ? `B ${formatMs(loopB)}` : 'B'}
+                  {loopB !== null ? `B·${formatMs(loopB)}` : 'B'}
                 </Text>
               </TouchableOpacity>
-
-              {/* Clear loop — only when both A and B are set */}
               {loopA !== null && loopB !== null && (
-                <TouchableOpacity
-                  style={[styles.loopBtn, { borderColor: colors.icon + '44' }]}
-                  onPress={() => clearLoop('both')}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close-circle-outline" size={16} color={colors.icon} />
+                <TouchableOpacity onPress={() => clearLoop('both')} hitSlop={10} activeOpacity={0.7}>
+                  <Ionicons name="close-circle-outline" size={22} color={colors.icon} />
                 </TouchableOpacity>
               )}
             </View>
@@ -897,6 +889,32 @@ export default function DetailScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Rename bookmark modal */}
+      {renamingBookmark !== null && (
+        <View style={[styles.renameOverlay]}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setRenamingBookmark(null)} />
+          <View style={[styles.renameBox, { backgroundColor: colors.background }]}>
+            <Text style={[styles.renameTitle, { color: colors.text }]}>Byt namn</Text>
+            <TextInput
+              style={[styles.renameInput, { color: colors.text, borderColor: colors.icon + '55', backgroundColor: colors.background }]}
+              value={renameLabel}
+              onChangeText={setRenameLabel}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleRenameBookmark}
+            />
+            <View style={styles.renameButtons}>
+              <TouchableOpacity style={[styles.renameBtn, { borderColor: colors.icon + '55' }]} onPress={() => setRenamingBookmark(null)}>
+                <Text style={[styles.renameBtnText, { color: colors.icon }]}>{S.cancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.renameBtn, { backgroundColor: colors.tint }]} onPress={handleRenameBookmark}>
+                <Text style={[styles.renameBtnText, { color: 'white' }]}>{S.save}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Share toast — fades in/out after share sheet closes */}
       <Animated.View
         style={[styles.toast, { opacity: toastAnim, bottom: 32 + insets.bottom }]}
@@ -944,8 +962,8 @@ const styles = StyleSheet.create({
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 28,
+    justifyContent: 'space-between',
+    width: '100%',
     marginTop: 4,
   },
   playBtn: {},
@@ -1052,15 +1070,6 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
 
-  loopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    flexWrap: 'wrap',
-  },
   loopBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1077,12 +1086,13 @@ const styles = StyleSheet.create({
   },
 
   speedBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   speedBtnText: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -1134,6 +1144,39 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     lineHeight: 30,
   },
+
+  renameOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 10,
+  },
+  renameBox: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 20,
+    gap: 14,
+  },
+  renameTitle: { fontSize: 17, fontWeight: '600' },
+  renameInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 16,
+  },
+  renameButtons: { flexDirection: 'row', gap: 10 },
+  renameBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  renameBtnText: { fontSize: 16, fontWeight: '500' },
 
   toast: {
     position: 'absolute',
