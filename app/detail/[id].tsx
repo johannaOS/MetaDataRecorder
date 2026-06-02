@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { deleteRecording, getAllKeywords, getAllUniqueTags, getRecordingById, Keyword, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
+import { Bookmark, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getBookmarksByRecording, getRecordingById, insertBookmark, Keyword, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
 import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
@@ -103,6 +103,14 @@ export default function DetailScreen() {
   const playbackRateRef = useRef(1.0);
   const [showSpeedPanel, setShowSpeedPanel] = useState(false);
 
+  // Bookmarks + A/B loop
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [loopA, setLoopA] = useState<number | null>(null);
+  const [loopB, setLoopB] = useState<number | null>(null);
+  const loopARef = useRef<number | null>(null);
+  const loopBRef = useRef<number | null>(null);
+  const [markerBarWidth, setMarkerBarWidth] = useState(0);
+
   // Load recording on mount
   useEffect(() => {
     const r = getRecordingById(Number(id));
@@ -136,6 +144,9 @@ export default function DetailScreen() {
     setDidJustFinish(false);
     playbackRateRef.current = 1.0;
     setPlaybackRate(1.0);
+    loopARef.current = null; loopBRef.current = null;
+    setLoopA(null); setLoopB(null);
+    setBookmarks(getBookmarksByRecording(Number(id)));
 
     let mounted = true;
     let createdSound: Audio.Sound | null = null;
@@ -152,6 +163,11 @@ export default function DetailScreen() {
             setDurationMs(status.durationMillis ?? 0);
             setDidJustFinish(!!status.didJustFinish);
             if (status.didJustFinish) setIsPlaying(false);
+            // A/B loop — seek back to A when position reaches B
+            const a = loopARef.current; const b = loopBRef.current;
+            if (status.isPlaying && a !== null && b !== null && b > a && status.positionMillis >= b) {
+              soundRef.current?.setPositionAsync(a).catch(() => {});
+            }
           },
         );
         if (!mounted) { sound.unloadAsync().catch(() => {}); return; }
@@ -248,6 +264,36 @@ export default function DetailScreen() {
     soundRef.current?.setStatusAsync({ rate: r, shouldCorrectPitch: true }).catch((e) => {
       console.error('[Detail] setRate error:', e);
     });
+  }
+
+  function reloadBookmarks() {
+    setBookmarks(getBookmarksByRecording(Number(id)));
+  }
+
+  function handleAddBookmark() {
+    if (!recording) return;
+    const label = formatMs(positionMs_live);
+    const result = insertBookmark(recording.id, positionMs_live, label);
+    if (result === null) {
+      Alert.alert(S.error, 'Max 50 bookmarks per recording.');
+      return;
+    }
+    reloadBookmarks();
+  }
+
+  function handleDeleteBookmark(bmId: number) {
+    deleteBookmark(bmId);
+    reloadBookmarks();
+  }
+
+  function setLoop(point: 'A' | 'B', posMs: number) {
+    if (point === 'A') { loopARef.current = posMs; setLoopA(posMs); }
+    else               { loopBRef.current = posMs; setLoopB(posMs); }
+  }
+
+  function clearLoop(point: 'A' | 'B' | 'both') {
+    if (point !== 'B') { loopARef.current = null; setLoopA(null); }
+    if (point !== 'A') { loopBRef.current = null; setLoopB(null); }
   }
 
   // ── Edit mode ──────────────────────────────────────────────────────────────
@@ -475,6 +521,57 @@ export default function DetailScreen() {
                 <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
               </View>
             )}
+            {/* Bookmark + A/B markers above seek bar */}
+            {(bookmarks.length > 0 || loopA !== null || loopB !== null) && durationMs > 0 && (
+              <View
+                style={styles.markerBar}
+                onLayout={e => setMarkerBarWidth(e.nativeEvent.layout.width)}
+              >
+                {bookmarks.map((bm, idx) => {
+                  const pct = Math.min(1, bm.position_ms / durationMs);
+                  return (
+                    <TouchableOpacity
+                      key={bm.id}
+                      style={[styles.markerContainer, { left: `${pct * 100}%` as unknown as number }]}
+                      onPress={() => onSeekComplete(bm.position_ms)}
+                      onLongPress={() => Alert.alert(bm.label, undefined, [
+                        { text: S.cancel, style: 'cancel' },
+                        { text: 'Set as A', onPress: () => setLoop('A', bm.position_ms) },
+                        { text: 'Set as B', onPress: () => setLoop('B', bm.position_ms) },
+                        { text: S.delete, style: 'destructive', onPress: () => handleDeleteBookmark(bm.id) },
+                      ])}
+                      hitSlop={10}
+                    >
+                      <Text style={[styles.markerLabel, { color: colors.tint }]}>{idx + 1}</Text>
+                      <View style={[styles.markerTick, { backgroundColor: colors.tint }]} />
+                    </TouchableOpacity>
+                  );
+                })}
+                {loopA !== null && (
+                  <TouchableOpacity
+                    style={[styles.markerContainer, { left: `${Math.min(1, loopA / durationMs) * 100}%` as unknown as number }]}
+                    onPress={() => onSeekComplete(loopA)}
+                    onLongPress={() => clearLoop('A')}
+                    hitSlop={10}
+                  >
+                    <Text style={[styles.markerLabel, { color: '#00A878' }]}>A</Text>
+                    <View style={[styles.markerTick, { backgroundColor: '#00A878' }]} />
+                  </TouchableOpacity>
+                )}
+                {loopB !== null && (
+                  <TouchableOpacity
+                    style={[styles.markerContainer, { left: `${Math.min(1, loopB / durationMs) * 100}%` as unknown as number }]}
+                    onPress={() => onSeekComplete(loopB)}
+                    onLongPress={() => clearLoop('B')}
+                    hitSlop={10}
+                  >
+                    <Text style={[styles.markerLabel, { color: '#e53935' }]}>B</Text>
+                    <View style={[styles.markerTick, { backgroundColor: '#e53935' }]} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             <Slider
               style={styles.slider}
               minimumValue={0}
@@ -506,6 +603,57 @@ export default function DetailScreen() {
               >
                 <MaterialIcons name="forward-5" size={34} color={colors.icon} />
               </TouchableOpacity>
+            </View>
+
+            {/* Bookmark + A/B loop controls */}
+            <View style={[styles.loopRow, { borderTopColor: colors.icon + '22' }]}>
+              {/* Bookmark button */}
+              <TouchableOpacity
+                style={[styles.loopBtn, { borderColor: colors.icon + '44' }]}
+                onPress={handleAddBookmark}
+                hitSlop={8}
+              >
+                <Ionicons name="bookmark-outline" size={16} color={colors.tint} />
+              </TouchableOpacity>
+
+              {/* A button */}
+              <TouchableOpacity
+                style={[styles.loopBtn, loopA !== null
+                  ? { borderColor: '#00A878', backgroundColor: '#00A87818' }
+                  : { borderColor: colors.icon + '44' }]}
+                onPress={() => setLoop('A', positionMs_live)}
+                onLongPress={() => clearLoop('A')}
+                hitSlop={8}
+              >
+                <Text style={[styles.loopBtnText, { color: loopA !== null ? '#00A878' : colors.icon }]}>
+                  {loopA !== null ? `A ${formatMs(loopA)}` : 'A'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* B button */}
+              <TouchableOpacity
+                style={[styles.loopBtn, loopB !== null
+                  ? { borderColor: '#e53935', backgroundColor: '#e5393518' }
+                  : { borderColor: colors.icon + '44' }]}
+                onPress={() => setLoop('B', positionMs_live)}
+                onLongPress={() => clearLoop('B')}
+                hitSlop={8}
+              >
+                <Text style={[styles.loopBtnText, { color: loopB !== null ? '#e53935' : colors.icon }]}>
+                  {loopB !== null ? `B ${formatMs(loopB)}` : 'B'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Clear loop — only when both A and B are set */}
+              {loopA !== null && loopB !== null && (
+                <TouchableOpacity
+                  style={[styles.loopBtn, { borderColor: colors.icon + '44' }]}
+                  onPress={() => clearLoop('both')}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close-circle-outline" size={16} color={colors.icon} />
+                </TouchableOpacity>
+              )}
             </View>
 
             {showSpeedPanel && (
@@ -881,6 +1029,52 @@ const styles = StyleSheet.create({
   actionBtnSecondary: { borderWidth: 1 },
   actionBtnPrimaryText: { color: 'white', fontSize: 16, fontWeight: '600' },
   actionBtnSecondaryText: { fontSize: 16, fontWeight: '500' },
+
+  markerBar: {
+    width: '100%',
+    height: 24,
+    position: 'relative',
+    marginBottom: 2,
+  },
+  markerContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    bottom: 0,
+  },
+  markerLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+  },
+  markerTick: {
+    width: 2,
+    height: 10,
+    borderRadius: 1,
+  },
+
+  loopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexWrap: 'wrap',
+  },
+  loopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  loopBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
 
   speedBtn: {
     paddingHorizontal: 10,

@@ -100,6 +100,15 @@ export function initDb() {
     );
   `);
 
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recording_id INTEGER NOT NULL,
+      position_ms INTEGER NOT NULL,
+      label TEXT NOT NULL DEFAULT ''
+    );
+  `);
+
   // Column migrations (silent if already present)
   try { db.execSync("ALTER TABLE recordings ADD COLUMN ofAfter TEXT NOT NULL DEFAULT ''"); } catch {}
   try { db.execSync("ALTER TABLE recordings ADD COLUMN origin TEXT NOT NULL DEFAULT ''"); } catch {}
@@ -307,6 +316,41 @@ export function addKeyword(label: string) {
 
 export function deleteKeyword(id: number) {
   db.runSync('DELETE FROM keywords WHERE id = ?', id);
+}
+
+// ── Bookmarks ────────────────────────────────────────────────────────────────
+
+export interface Bookmark {
+  id: number;
+  recording_id: number;
+  position_ms: number;
+  label: string;
+}
+
+const MAX_BOOKMARKS_PER_RECORDING = 50;
+
+export function getBookmarksByRecording(recordingId: number): Bookmark[] {
+  return db.getAllSync(
+    'SELECT * FROM bookmarks WHERE recording_id = ? ORDER BY position_ms ASC',
+    recordingId,
+  ) as Bookmark[];
+}
+
+export function insertBookmark(recordingId: number, positionMs: number, label: string): number | null {
+  const count = (db.getFirstSync(
+    'SELECT COUNT(*) AS c FROM bookmarks WHERE recording_id = ?',
+    recordingId,
+  ) as { c: number }).c;
+  if (count >= MAX_BOOKMARKS_PER_RECORDING) return null;
+  const result = db.runSync(
+    'INSERT INTO bookmarks (recording_id, position_ms, label) VALUES (?, ?, ?)',
+    recordingId, positionMs, label,
+  );
+  return result.lastInsertRowId;
+}
+
+export function deleteBookmark(id: number) {
+  db.runSync('DELETE FROM bookmarks WHERE id = ?', id);
 }
 
 // ── Install ID ───────────────────────────────────────────────────────────────

@@ -33,6 +33,9 @@ import {
   renameTag,
   countRecordingsWithBuiltInFieldData,
   clearBuiltInFieldData,
+  insertBookmark,
+  getBookmarksByRecording,
+  deleteBookmark,
 } from '../lib/db';
 
 // Shared fixture factory
@@ -576,5 +579,50 @@ describe('updateRecordingDuration', () => {
     expect(r.duration).toBe(77);
     expect(r.name).toBe('DurTest-2');
     expect(r.origin).toBe('Dalarna');
+  });
+});
+
+// ── Bookmarks ─────────────────────────────────────────────────────────────────
+
+describe('bookmarks', () => {
+  const recBase = { name: 'BmkTest', ofAfter: '', origin: '', songType: '',
+    performer: '', notes: '', filePath: '/bmk.m4a', duration: 10,
+    createdAt: '2025-01-01T00:00:00Z', customData: '{}' };
+
+  it('inserts and retrieves bookmarks ordered by position', () => {
+    const recId = insertRecording(recBase);
+    insertBookmark(recId, 5000, '0:05');
+    insertBookmark(recId, 1000, '0:01');
+    insertBookmark(recId, 3000, '0:03');
+    const bms = getBookmarksByRecording(recId);
+    expect(bms.map(b => b.position_ms)).toEqual([1000, 3000, 5000]);
+  });
+
+  it('deleteBookmark removes only the target', () => {
+    const recId = insertRecording({ ...recBase, name: 'BmkDel' });
+    const id1 = insertBookmark(recId, 1000, '0:01')!;
+    const id2 = insertBookmark(recId, 2000, '0:02')!;
+    deleteBookmark(id1);
+    const bms = getBookmarksByRecording(recId);
+    expect(bms.length).toBe(1);
+    expect(bms[0].id).toBe(id2);
+  });
+
+  it('returns null when recording already has 50 bookmarks', () => {
+    const recId = insertRecording({ ...recBase, name: 'BmkLimit' });
+    for (let i = 0; i < 50; i++) insertBookmark(recId, i * 1000, String(i));
+    const result = insertBookmark(recId, 99000, 'overflow');
+    expect(result).toBeNull();
+    expect(getBookmarksByRecording(recId).length).toBe(50);
+  });
+
+  it('bookmarks are isolated per recording', () => {
+    const recA = insertRecording({ ...recBase, name: 'BmkIsoA' });
+    const recB = insertRecording({ ...recBase, name: 'BmkIsoB' });
+    insertBookmark(recA, 1000, 'a');
+    insertBookmark(recB, 2000, 'b');
+    expect(getBookmarksByRecording(recA).length).toBe(1);
+    expect(getBookmarksByRecording(recB).length).toBe(1);
+    expect(getBookmarksByRecording(recA)[0].position_ms).toBe(1000);
   });
 });
