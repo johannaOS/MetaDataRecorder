@@ -2,15 +2,20 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { cacheDirectory, copyAsync, deleteAsync } from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  Image,
   KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -25,7 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Bookmark, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getBookmarksByRecording, getRecordingById, insertBookmark, Keyword, parseCustomData, parseTags, Recording, updateBookmarkLabel, updateRecording } from '@/lib/db';
+import { Attachment, Bookmark, deleteAttachment, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getAttachmentsByRecording, getBookmarksByRecording, getRecordingById, insertAttachment, insertBookmark, Keyword, parseCustomData, parseTags, Recording, updateBookmarkLabel, updateRecording } from '@/lib/db';
 import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
@@ -113,6 +118,10 @@ export default function DetailScreen() {
   const [renamingBookmark, setRenamingBookmark] = useState<Bookmark | null>(null);
   const [renameLabel, setRenameLabel] = useState('');
 
+  // Attachments
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   // Load recording on mount
   useEffect(() => {
     const r = getRecordingById(Number(id));
@@ -149,6 +158,7 @@ export default function DetailScreen() {
     loopARef.current = null; loopBRef.current = null;
     setLoopA(null); setLoopB(null);
     setBookmarks(getBookmarksByRecording(Number(id)));
+    setAttachments(getAttachmentsByRecording(Number(id)));
 
     let mounted = true;
     let createdSound: Audio.Sound | null = null;
@@ -294,6 +304,57 @@ export default function DetailScreen() {
     if (label) updateBookmarkLabel(renamingBookmark.id, label);
     setRenamingBookmark(null);
     reloadBookmarks();
+  }
+
+  function reloadAttachments() {
+    if (recording) setAttachments(getAttachmentsByRecording(recording.id));
+  }
+
+  async function handlePickImage() {
+    if (!recording) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Behörighet saknas', 'Tillåt åtkomst till foton i inställningarna.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const fileName = asset.uri.split('/').pop() ?? 'image.jpg';
+      const dest = (cacheDirectory ?? '') + fileName;
+      await copyAsync({ from: asset.uri, to: dest });
+      const finalUri = await (await import('@/lib/saveRecording')).copyToPermanentStorage(dest, fileName.replace(/\.[^.]+$/, ''));
+      insertAttachment(recording.id, 'image', finalUri, fileName);
+      reloadAttachments();
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'pickImage' } });
+      Alert.alert(S.error, String(e));
+    }
+  }
+
+  async function handlePickPdf() {
+    if (!recording) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const fileName = asset.name ?? 'document.pdf';
+      const finalUri = await (await import('@/lib/saveRecording')).copyToPermanentStorage(asset.uri, fileName.replace(/\.[^.]+$/, ''));
+      insertAttachment(recording.id, 'pdf', finalUri, fileName);
+      reloadAttachments();
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'pickPdf' } });
+      Alert.alert(S.error, String(e));
+    }
+  }
+
+  function handleDeleteAttachment(att: Attachment) {
+    Alert.alert(att.file_name, 'Ta bort bilaga?', [
+      { text: S.cancel, style: 'cancel' },
+      { text: S.delete, style: 'destructive', onPress: () => {
+        try { new File(att.uri).delete(); } catch {}
+        deleteAttachment(att.id);
+        reloadAttachments();
+      }},
+    ]);
   }
 
   function setLoop(point: 'A' | 'B', posMs: number) {
@@ -745,6 +806,59 @@ export default function DetailScreen() {
                   </View>
                 </View>
               )}
+
+              {/* Attachments section */}
+              <View style={[styles.metaRow, { borderBottomColor: colors.icon + '22', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }]}>
+                <Text style={[styles.metaLabel, { color: colors.icon }]}>Bilagor</Text>
+
+                {/* Images */}
+                {attachments.filter(a => a.type === 'image').length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {attachments.filter(a => a.type === 'image').map(att => (
+                      <TouchableOpacity
+                        key={att.id}
+                        onPress={() => setPreviewImage(att.uri)}
+                        onLongPress={() => handleDeleteAttachment(att)}
+                        activeOpacity={0.8}
+                      >
+                        <Image source={{ uri: att.uri }} style={styles.attachmentThumb} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* PDFs */}
+                {attachments.filter(a => a.type === 'pdf').map(att => (
+                  <TouchableOpacity
+                    key={att.id}
+                    style={[styles.pdfChip, { borderColor: colors.icon + '44', backgroundColor: colors.icon + '10' }]}
+                    onPress={() => Linking.openURL(att.uri).catch(() => Sharing.shareAsync(att.uri, { mimeType: 'application/pdf' }))}
+                    onLongPress={() => handleDeleteAttachment(att)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="document-text-outline" size={18} color={colors.tint} />
+                    <Text style={[styles.pdfChipText, { color: colors.text }]} numberOfLines={1}>{att.file_name}</Text>
+                  </TouchableOpacity>
+                ))}
+
+                {/* Add buttons */}
+                <View style={styles.attachAddRow}>
+                  <TouchableOpacity
+                    style={[styles.attachAddBtn, { borderColor: colors.icon + '44' }]}
+                    onPress={handlePickImage}
+                  >
+                    <Ionicons name="image-outline" size={18} color={colors.tint} />
+                    <Text style={[styles.attachAddText, { color: colors.tint }]}>Foto</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.attachAddBtn, { borderColor: colors.icon + '44' }]}
+                    onPress={handlePickPdf}
+                  >
+                    <Ionicons name="document-outline" size={18} color={colors.tint} />
+                    <Text style={[styles.attachAddText, { color: colors.tint }]}>PDF</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           ) : (
             /* ── Edit form ─────────────────────────────────────────────────── */
@@ -888,6 +1002,15 @@ export default function DetailScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Image preview modal */}
+      <Modal visible={previewImage !== null} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <TouchableOpacity style={styles.previewOverlay} activeOpacity={1} onPress={() => setPreviewImage(null)}>
+          {previewImage && (
+            <Image source={{ uri: previewImage }} style={styles.previewImage} resizeMode="contain" />
+          )}
+        </TouchableOpacity>
+      </Modal>
 
       {/* Rename bookmark modal */}
       {renamingBookmark !== null && (
@@ -1143,6 +1266,53 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '300',
     lineHeight: 30,
+  },
+
+  attachmentThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  pdfChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+  pdfChipText: {
+    flex: 1,
+    fontSize: 14,
+  },
+  attachAddRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  attachAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  attachAddText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewImage: {
+    width: '100%',
+    height: '80%',
   },
 
   renameOverlay: {

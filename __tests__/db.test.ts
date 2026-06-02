@@ -626,3 +626,41 @@ describe('bookmarks', () => {
     expect(getBookmarksByRecording(recA)[0].position_ms).toBe(1000);
   });
 });
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+
+import { insertAttachment, getAttachmentsByRecording, deleteAttachment } from '../lib/db';
+
+describe('attachments', () => {
+  const recBase = { name: 'AttTest', ofAfter: '', origin: '', songType: '',
+    performer: '', notes: '', filePath: '/att.m4a', duration: 5,
+    createdAt: '2025-01-01T00:00:00Z', customData: '{}' };
+
+  it('inserts and retrieves attachments', () => {
+    const recId = insertRecording(recBase);
+    insertAttachment(recId, 'image', '/img.jpg', 'photo.jpg');
+    insertAttachment(recId, 'pdf', '/doc.pdf', 'notes.pdf');
+    const atts = getAttachmentsByRecording(recId);
+    expect(atts.length).toBe(2);
+    expect(atts[0].type).toBe('image');
+    expect(atts[1].type).toBe('pdf');
+  });
+
+  it('deleteAttachment removes only the target', () => {
+    const recId = insertRecording({ ...recBase, name: 'AttDel' });
+    const id1 = insertAttachment(recId, 'image', '/a.jpg', 'a.jpg');
+    const id2 = insertAttachment(recId, 'pdf', '/b.pdf', 'b.pdf');
+    deleteAttachment(id1);
+    const atts = getAttachmentsByRecording(recId);
+    expect(atts.length).toBe(1);
+    expect(atts[0].id).toBe(id2);
+  });
+
+  it('attachments are isolated per recording', () => {
+    const recA = insertRecording({ ...recBase, name: 'AttIsoA' });
+    const recB = insertRecording({ ...recBase, name: 'AttIsoB' });
+    insertAttachment(recA, 'image', '/x.jpg', 'x.jpg');
+    expect(getAttachmentsByRecording(recA).length).toBe(1);
+    expect(getAttachmentsByRecording(recB).length).toBe(0);
+  });
+});

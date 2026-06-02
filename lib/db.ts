@@ -101,6 +101,16 @@ export function initDb() {
   `);
 
   db.execSync(`
+    CREATE TABLE IF NOT EXISTS attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recording_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      uri TEXT NOT NULL,
+      file_name TEXT NOT NULL DEFAULT ''
+    );
+  `);
+
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS bookmarks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       recording_id INTEGER NOT NULL,
@@ -355,6 +365,35 @@ export function deleteBookmark(id: number) {
 
 export function updateBookmarkLabel(id: number, label: string) {
   db.runSync('UPDATE bookmarks SET label = ? WHERE id = ?', label, id);
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+
+export interface Attachment {
+  id: number;
+  recording_id: number;
+  type: 'image' | 'pdf';
+  uri: string;
+  file_name: string;
+}
+
+export function getAttachmentsByRecording(recordingId: number): Attachment[] {
+  return db.getAllSync(
+    'SELECT * FROM attachments WHERE recording_id = ? ORDER BY id ASC',
+    recordingId,
+  ) as Attachment[];
+}
+
+export function insertAttachment(recordingId: number, type: 'image' | 'pdf', uri: string, fileName: string): number {
+  const result = db.runSync(
+    'INSERT INTO attachments (recording_id, type, uri, file_name) VALUES (?, ?, ?, ?)',
+    recordingId, type, uri, fileName,
+  );
+  return result.lastInsertRowId;
+}
+
+export function deleteAttachment(id: number) {
+  db.runSync('DELETE FROM attachments WHERE id = ?', id);
 }
 
 // ── Install ID ───────────────────────────────────────────────────────────────
