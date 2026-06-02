@@ -482,8 +482,8 @@ export default function MetadataScreen() {
                 const tc = tagColor(tag);
                 return (
                   <TouchableOpacity key={tag} onPress={() => setTags(prev => prev.filter(t => t !== tag))}
-                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: tc.bg }}>
-                    <Text style={{ fontSize: 13, fontWeight: '500', color: tc.text }}>{tag} ✕</Text>
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14, backgroundColor: tc.bg }}>
+                    <Text style={{ fontSize: 14, fontWeight: '500', color: tc.text }}>{tag} ✕</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -497,8 +497,8 @@ export default function MetadataScreen() {
                 const tc = tagColor(tag);
                 return (
                   <TouchableOpacity key={tag} onPress={() => setTags(prev => [...prev, tag])}
-                    style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: tc.bg, borderWidth: 1, borderStyle: 'dashed', borderColor: tc.text + '55' }}>
-                    <Text style={{ fontSize: 13, fontWeight: '500', color: tc.text, opacity: 0.7 }}>{tag}</Text>
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14, backgroundColor: tc.bg, borderWidth: 1, borderStyle: 'dashed', borderColor: tc.text + '55' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '500', color: tc.text, opacity: 0.7 }}>{tag}</Text>
                   </TouchableOpacity>
                 );
               })}

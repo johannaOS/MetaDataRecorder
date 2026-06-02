@@ -708,12 +708,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 14,
   },
   tagRemovable: {},
-  tagText: { fontSize: 13, fontWeight: '500' },
+  tagText: { fontSize: 14, fontWeight: '500' },
 
   // Metadata display
   section: { paddingHorizontal: 20 },

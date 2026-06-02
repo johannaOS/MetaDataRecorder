@@ -1007,11 +1007,11 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   tagChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
   },
-  tagChipText: { fontSize: 13 },
+  tagChipText: { fontSize: 14 },
 
   viewModeBar: {
     flexDirection: 'row',

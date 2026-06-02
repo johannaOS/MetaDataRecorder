@@ -956,8 +956,8 @@ const styles = StyleSheet.create({
   formNotesInput: { minHeight: 60 },
   optionalSuffix: { fontSize: 11, fontWeight: '400', textTransform: 'none', letterSpacing: 0, opacity: 0.55 },
   formTagChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
-  formTagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
-  formTagChipText: { fontSize: 13, fontWeight: '500' },
+  formTagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
+  formTagChipText: { fontSize: 14, fontWeight: '500' },
   formButtonsFixed: {
     flexDirection: 'row',
     gap: 10,
