@@ -98,6 +98,10 @@ export default function DetailScreen() {
   const wasPlayingRef = useRef(false);
   const hasAutoPlayedRef = useRef(false);
 
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const playbackRateRef = useRef(1.0);
+  const [showSpeedPanel, setShowSpeedPanel] = useState(false);
+
   // Load recording on mount
   useEffect(() => {
     const r = getRecordingById(Number(id));
@@ -128,6 +132,8 @@ export default function DetailScreen() {
     setPositionMs(0);
     setDurationMs(0);
     setDidJustFinish(false);
+    playbackRateRef.current = 1.0;
+    setPlaybackRate(1.0);
 
     let mounted = true;
     let createdSound: Audio.Sound | null = null;
@@ -149,6 +155,10 @@ export default function DetailScreen() {
         if (!mounted) { sound.unloadAsync().catch(() => {}); return; }
         createdSound = sound;
         soundRef.current = sound;
+
+        if (playbackRateRef.current !== 1.0) {
+          await sound.setStatusAsync({ rate: playbackRateRef.current, shouldCorrectPitch: true }).catch(() => {});
+        }
 
         // Auto-play or seek to handoff position once loaded
         if (!hasAutoPlayedRef.current) {
@@ -227,6 +237,15 @@ export default function DetailScreen() {
       console.error('[Detail] seek error:', e);
     }
     setSeekPositionMs(null);
+  }
+
+  function applyRate(rate: number) {
+    const r = Math.round(rate * 100) / 100;
+    playbackRateRef.current = r;
+    setPlaybackRate(r);
+    soundRef.current?.setStatusAsync({ rate: r, shouldCorrectPitch: true }).catch((e) => {
+      console.error('[Detail] setRate error:', e);
+    });
   }
 
   // ── Edit mode ──────────────────────────────────────────────────────────────
@@ -476,6 +495,66 @@ export default function DetailScreen() {
                 <MaterialIcons name="forward-5" size={34} color={colors.icon} />
               </TouchableOpacity>
             </View>
+
+            {/* Speed button + expandable panel */}
+            <TouchableOpacity
+              style={styles.speedBtn}
+              onPress={() => setShowSpeedPanel(v => !v)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.speedBtnText, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
+                ×{playbackRate % 1 === 0 ? playbackRate.toFixed(0) : playbackRate}
+              </Text>
+            </TouchableOpacity>
+
+            {showSpeedPanel && (
+              <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
+                <View style={styles.speedPresets}>
+                  {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(r => (
+                    <TouchableOpacity
+                      key={r}
+                      style={[
+                        styles.speedPreset,
+                        { borderColor: colors.icon + '44' },
+                        playbackRate === r && { backgroundColor: colors.tint + '22', borderColor: colors.tint },
+                      ]}
+                      onPress={() => applyRate(r)}
+                    >
+                      <Text style={[styles.speedPresetText, { color: playbackRate === r ? colors.tint : colors.text }]}>
+                        ×{r % 1 === 0 ? r.toFixed(0) : r}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.speedSliderRow}>
+                  <TouchableOpacity
+                    style={[styles.speedStepBtn, { borderColor: colors.icon + '44', opacity: playbackRate <= 0.5 ? 0.3 : 1 }]}
+                    onPress={() => applyRate(Math.max(0.5, playbackRate - 0.25))}
+                    disabled={playbackRate <= 0.5}
+                  >
+                    <Text style={[styles.speedStepText, { color: colors.text }]}>−</Text>
+                  </TouchableOpacity>
+                  <Slider
+                    style={styles.speedSlider}
+                    minimumValue={0.5}
+                    maximumValue={2.0}
+                    step={0.25}
+                    value={playbackRate}
+                    minimumTrackTintColor={colors.tint}
+                    maximumTrackTintColor={colors.icon + '44'}
+                    thumbTintColor={colors.text}
+                    onSlidingComplete={applyRate}
+                  />
+                  <TouchableOpacity
+                    style={[styles.speedStepBtn, { borderColor: colors.icon + '44', opacity: playbackRate >= 2.0 ? 0.3 : 1 }]}
+                    onPress={() => applyRate(Math.min(2.0, playbackRate + 0.25))}
+                    disabled={playbackRate >= 2.0}
+                  >
+                    <Text style={[styles.speedStepText, { color: colors.text }]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* ── Metadata display ───────────────────────────────────────────── */}
@@ -780,6 +859,67 @@ const styles = StyleSheet.create({
   actionBtnSecondary: { borderWidth: 1 },
   actionBtnPrimaryText: { color: 'white', fontSize: 16, fontWeight: '600' },
   actionBtnSecondaryText: { fontSize: 16, fontWeight: '500' },
+
+  speedBtn: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  speedBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  speedPanel: {
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  speedPresets: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  speedPreset: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 48,
+    alignItems: 'center',
+  },
+  speedPresetText: {
+    fontSize: 14,
+    fontWeight: '500',
+    fontVariant: ['tabular-nums'],
+  },
+  speedSliderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  speedSlider: {
+    flex: 1,
+    height: 40,
+  },
+  speedStepBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speedStepText: {
+    fontSize: 24,
+    fontWeight: '300',
+    lineHeight: 30,
+  },
 
   toast: {
     position: 'absolute',
