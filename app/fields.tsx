@@ -249,14 +249,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowLeft: { flex: 1 },
   rowLabel: { fontSize: 16, fontWeight: '500' },
   rowSub: { fontSize: 12, marginTop: 2 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  arrowBtn: { padding: 6 },
+  arrowBtn: { padding: 10 },
 
   addBtn: {
     flexDirection: 'row',

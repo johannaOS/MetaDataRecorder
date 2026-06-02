@@ -962,7 +962,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 16 },
 
   filterWrapper: {
-    height: 34,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
@@ -973,15 +973,15 @@ const styles = StyleSheet.create({
   },
   clearBtn: {
     paddingHorizontal: 12,
-    height: 28,
+    height: 36,
     justifyContent: 'center',
     alignSelf: 'center',
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     marginRight: 12,
   },
   clearText: {
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
     fontWeight: '600',
   },
@@ -1000,6 +1000,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     fontWeight: '400',
+    paddingVertical: 10,
   },
   filterWordActive: {
     fontWeight: '700',
@@ -1026,10 +1027,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    paddingVertical: 6,
+    paddingVertical: 9,
     borderRadius: 9,
   },
-  viewModeBtnText: { fontSize: 13, fontWeight: '500' },
+  viewModeBtnText: { fontSize: 14, fontWeight: '500' },
 
   busyOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1072,9 +1073,9 @@ const styles = StyleSheet.create({
 
   colorPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   colorSwatch: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1091,7 +1092,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowLeft: { flex: 1, marginRight: 16 },
@@ -1112,9 +1113,9 @@ const styles = StyleSheet.create({
   },
 
   addKwBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

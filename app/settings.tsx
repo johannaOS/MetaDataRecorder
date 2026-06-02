@@ -171,7 +171,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   sectionHeader: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.8,
     marginHorizontal: 16,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 16,
     marginTop: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
   },
   primaryBtnText: { color: 'white', fontSize: 16, fontWeight: '600' },
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   backupRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backupRowDate: { fontSize: 15, fontWeight: '500' },

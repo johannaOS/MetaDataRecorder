@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
 
   // Header
   headerBtns: { flexDirection: 'row', gap: 4 },
-  headerBtn: { padding: 6 },
+  headerBtn: { padding: 10 },
 
   // Player
   player: {
@@ -709,7 +709,7 @@ const styles = StyleSheet.create({
   },
   tag: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 7,
     borderRadius: 14,
   },
   tagRemovable: {},
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   metaLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
   },
   shortcutBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 9,
     borderRadius: 14,
     borderWidth: 1.5,
   },
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   editLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
   },
   actionBtnSecondary: { borderWidth: 1 },

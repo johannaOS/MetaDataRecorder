@@ -74,7 +74,7 @@ interface SavedMeta {
 const SAVE_COLOR = '#00A878';
 
 // Height of the compact recorder strip at the bottom of the split layout
-const COMPACT_RECORDER_HEIGHT = 52;
+const COMPACT_RECORDER_HEIGHT = 60;
 
 export default function RecorderScreen() {
   const colorScheme = useColorScheme();
@@ -926,11 +926,11 @@ const styles = StyleSheet.create({
   },
   stripBar: { width: 3, borderRadius: 1.5, minHeight: 2 },
   stripBtn: {
-    width: 30, height: 30, borderRadius: 15, borderWidth: 1.5,
+    width: 40, height: 40, borderRadius: 20, borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
   },
   stripStopBtn: {
-    width: 30, height: 30, borderRadius: 15,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: '#b71c1c',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -939,24 +939,24 @@ const styles = StyleSheet.create({
   formScroll: { padding: 16, paddingBottom: 24 },
   formManageBtn: { alignSelf: 'flex-end', padding: 4, marginBottom: 4 },
   formLabel: {
-    fontSize: 11, fontWeight: '600',
+    fontSize: 12, fontWeight: '600',
     textTransform: 'uppercase', letterSpacing: 0.5,
     marginBottom: 6,
   },
   formLabelSpaced: { marginTop: 14 },
   // Extra top margin so chips don't crowd the Title input above
   formChips: { flexDirection: 'row', gap: 6, marginTop: 16, marginBottom: 6 },
-  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1.5 },
+  chip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, borderWidth: 1.5 },
   chipText: { fontSize: 12, fontWeight: '500' },
   formInput: {
     borderWidth: 1, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 9,
+    paddingHorizontal: 12, paddingVertical: 12,
     fontSize: 15,
   },
   formNotesInput: { minHeight: 60 },
-  optionalSuffix: { fontSize: 10, fontWeight: '400', textTransform: 'none', letterSpacing: 0, opacity: 0.55 },
+  optionalSuffix: { fontSize: 11, fontWeight: '400', textTransform: 'none', letterSpacing: 0, opacity: 0.55 },
   formTagChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
-  formTagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+  formTagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
   formTagChipText: { fontSize: 13, fontWeight: '500' },
   formButtonsFixed: {
     flexDirection: 'row',
@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
   formBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: 10,
+    paddingVertical: 14, borderRadius: 10,
   },
   formBtnDiscard: { borderWidth: 1 },
   formBtnSaveText: { color: 'white', fontSize: 15, fontWeight: '600' },

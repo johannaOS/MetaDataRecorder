@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
 
   prependBtns: { flexDirection: 'row', gap: 6 },
   prependBtnsLabel: { marginBottom: 8 },
-  prependBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5 },
+  prependBtn: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, borderWidth: 1.5 },
   prependBtnText: { fontSize: 13, fontWeight: '500' },
 
   input: {
@@ -622,7 +622,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
   },
   btnSaveText: { color: 'white', fontSize: 16, fontWeight: '600' },
