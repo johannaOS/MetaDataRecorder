@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { clearActiveRecording, getActiveRecording } from '@/lib/activeRecording';
-import { FieldConfig, getAllUniqueTags, insertRecording } from '@/lib/db';
+import { FieldConfig, getAllKeywords, getAllUniqueTags, insertRecording, Keyword } from '@/lib/db';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
@@ -81,9 +81,13 @@ export default function MetadataScreen() {
   });
   const [tagInput, setTagInput] = useState('');
   const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
+  const [allKeywords, setAllKeywords] = useState<Keyword[]>([]);
   const [fieldConfigs] = useFieldConfig();
 
-  useEffect(() => { setAllExistingTags(getAllUniqueTags()); }, []);
+  useEffect(() => {
+    setAllExistingTags(getAllUniqueTags());
+    setAllKeywords(getAllKeywords());
+  }, []);
 
   // ── Intercept hardware back button to show discard confirmation (Bug 3) ───────
   useFocusEffect(
@@ -404,6 +408,21 @@ export default function MetadataScreen() {
           return (
             <View key="songType">
               <Text style={spacedLabel}>{field.label} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
+              {allKeywords.length > 0 && (
+                <View style={[styles.prependBtns, styles.prependBtnsLabel]}>
+                  {allKeywords.map(kw => (
+                    <TouchableOpacity
+                      key={kw.id}
+                      style={[styles.prependBtn, songType === kw.label
+                        ? { borderColor: colors.tint, backgroundColor: colors.tint + '18' }
+                        : { borderColor: colors.icon + '66' }]}
+                      onPress={() => { songTypeLockedRef.current = true; setSongTypeIsAuto(false); setSongType(kw.label); }}
+                    >
+                      <Text style={[styles.prependBtnText, { color: songType === kw.label ? colors.tint : colors.text }]}>{kw.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <TextInput ref={songTypeRef} style={[inputStyle, songTypeIsAuto && { color: colors.icon }]}
                 placeholder={S.placeholderSongType} placeholderTextColor={colors.icon} value={songType}
                 onChangeText={t => { songTypeLockedRef.current = true; setSongTypeIsAuto(false); setSongType(t); }} returnKeyType="next" />

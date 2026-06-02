@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { deleteRecording, getAllUniqueTags, getRecordingById, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
+import { deleteRecording, getAllKeywords, getAllUniqueTags, getRecordingById, Keyword, parseCustomData, parseTags, Recording, updateRecording } from '@/lib/db';
 import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
@@ -79,6 +79,7 @@ export default function DetailScreen() {
   const [editTags, setEditTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [allKeywords, setAllKeywords] = useState<Keyword[]>([]);
   const [fieldConfigs] = useFieldConfig();
 
   // Player — expo-av Sound does not auto-pause on Activity.onPause(), enabling
@@ -117,6 +118,7 @@ export default function DetailScreen() {
         setEditCustomValues(parseCustomData(r.customData));
         setEditTags(parseTags(r.tags));
         setAllTags(getAllUniqueTags());
+        setAllKeywords(getAllKeywords());
         setIsEditing(true);
       }
     }
@@ -261,6 +263,7 @@ export default function DetailScreen() {
     setEditCustomValues(parseCustomData(recording.customData));
     setEditTags(parseTags(recording.tags));
     setAllTags(getAllUniqueTags());
+    setAllKeywords(getAllKeywords());
     setTagInput('');
     setIsEditing(true);
   }
@@ -634,10 +637,31 @@ export default function DetailScreen() {
                         multiline textAlignVertical="top" placeholderTextColor={colors.icon} />
                     </View>
                   );
+                  // Song type — same text input but with keyword chips above
+                  if (field.key === 'songType') return (
+                    <View key="songType" style={styles.editField}>
+                      <Text style={[styles.editLabel, { color: colors.icon }]}>{field.label}</Text>
+                      {allKeywords.length > 0 && (
+                        <View style={[styles.shortcutRow, { marginBottom: 8 }]}>
+                          {allKeywords.map(kw => (
+                            <TouchableOpacity
+                              key={kw.id}
+                              style={[styles.shortcutBtn, editSongType === kw.label
+                                ? { borderColor: colors.tint, backgroundColor: colors.tint + '18' }
+                                : { borderColor: colors.text }]}
+                              onPress={() => setEditSongType(kw.label)}
+                            >
+                              <Text style={[styles.shortcutBtnText, { color: editSongType === kw.label ? colors.tint : colors.text }]}>{kw.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      <TextInput style={inputStyle} value={editSongType} onChangeText={setEditSongType} placeholderTextColor={colors.icon} />
+                    </View>
+                  );
                   // Remaining built-in text fields
                   const builtInMap: Record<string, [string, (v: string) => void]> = {
                     origin: [editOrigin, setEditOrigin],
-                    songType: [editSongType, setEditSongType],
                     performer: [editPerformer, setEditPerformer],
                   };
                   const entry = builtInMap[field.key];

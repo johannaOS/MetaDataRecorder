@@ -35,9 +35,11 @@ import {
   clearBuiltInFieldData,
   countRecordingsWithBuiltInFieldData,
   deleteCustomField,
+  getAllKeywords,
   getAllRecordings,
   getAllUniqueTags,
   insertRecording,
+  Keyword,
   parseCustomData,
   updateFieldVisibility,
 } from '@/lib/db';
@@ -127,6 +129,7 @@ export default function RecorderScreen() {
   const [formTags, setFormTags] = useState<string[]>([]);
   const [formTagInput, setFormTagInput] = useState('');
   const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
+  const [allKeywords, setAllKeywords] = useState<Keyword[]>([]);
   const [formCustomValues, setFormCustomValues] = useState<Record<string, string>>({});
   const [fieldConfigs, reloadFieldConfigs] = useFieldConfig();
 
@@ -474,6 +477,7 @@ export default function RecorderScreen() {
       formSongTypeLockedRef.current = false;
     }
     setAllExistingTags(getAllUniqueTags());
+    setAllKeywords(getAllKeywords());
     setIsFormExpanded(true);
   }
 
@@ -628,6 +632,21 @@ export default function RecorderScreen() {
               <TouchableOpacity onLongPress={() => handleFieldLongPress('songType', S.fieldSongType, true)} delayLongPress={400}>
                 <Text style={[styles.formLabel, styles.formLabelSpaced, { color: colors.icon }]}>{S.fieldSongType} <Text style={styles.optionalSuffix}>{S.optional}</Text></Text>
               </TouchableOpacity>
+              {allKeywords.length > 0 && (
+                <View style={styles.formChips}>
+                  {allKeywords.map(kw => (
+                    <TouchableOpacity
+                      key={kw.id}
+                      style={[styles.chip, formSongType === kw.label
+                        ? { borderColor: colors.tint, backgroundColor: colors.tint + '18' }
+                        : { borderColor: colors.text }]}
+                      onPress={() => { formSongTypeLockedRef.current = true; setFormSongTypeIsAuto(false); setFormSongType(kw.label); }}
+                    >
+                      <Text style={[styles.chipText, { color: formSongType === kw.label ? colors.tint : colors.text }]}>{kw.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <TextInput ref={formSongTypeRef} style={[formInputStyle, formSongTypeIsAuto && { color: colors.icon }]}
                 placeholder={S.placeholderSongType} placeholderTextColor={colors.icon}
                 value={formSongType} onChangeText={t => { formSongTypeLockedRef.current = true; setFormSongTypeIsAuto(false); setFormSongType(t); }}
