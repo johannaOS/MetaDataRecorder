@@ -26,6 +26,7 @@
       "predictiveBackGestureEnabled": false,
       "requestLegacyExternalStorage": true,
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.WRITE_EXTERNAL_STORAGE",

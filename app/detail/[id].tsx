@@ -14,7 +14,6 @@ import {
   Animated,
   Image,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -35,6 +34,7 @@ import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
 import { generateSafeFilename } from '@/lib/filename';
+import { copyAttachmentToStorage, copyToPermanentStorage } from '@/lib/saveRecording';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
@@ -350,13 +350,11 @@ export default function DetailScreen() {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert('Behörighet saknas', 'Tillåt åtkomst till foton i inställningarna.'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, copyToCacheDirectory: true });
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
       if (result.canceled) return;
       const asset = result.assets[0];
-      const fileName = asset.uri.split('/').pop() ?? 'image.jpg';
-      const dest = (cacheDirectory ?? '') + fileName;
-      await copyAsync({ from: asset.uri, to: dest });
-      const finalUri = await (await import('@/lib/saveRecording')).copyToPermanentStorage(dest, fileName.replace(/\.[^.]+$/, ''));
+      const fileName = asset.uri.split('/').pop()?.split('?')[0] ?? 'image.jpg';
+      const finalUri = copyAttachmentToStorage(asset.uri, fileName);
       insertAttachment(recording.id, 'image', finalUri, fileName);
       reloadAttachments();
     } catch (e) {
@@ -365,14 +363,32 @@ export default function DetailScreen() {
     }
   }
 
+  async function handleTakePhoto() {
+    if (!recording) return;
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Behörighet saknas', 'Tillåt kameraåtkomst i inställningarna.'); return; }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const fileName = asset.uri.split('/').pop()?.split('?')[0] ?? `photo_${Date.now()}.jpg`;
+      const finalUri = copyAttachmentToStorage(asset.uri, fileName);
+      insertAttachment(recording.id, 'image', finalUri, fileName);
+      reloadAttachments();
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'takePhoto' } });
+      Alert.alert(S.error, String(e));
+    }
+  }
+
   async function handlePickPdf() {
     if (!recording) return;
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf'], copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       const fileName = asset.name ?? 'document.pdf';
-      const finalUri = await (await import('@/lib/saveRecording')).copyToPermanentStorage(asset.uri, fileName.replace(/\.[^.]+$/, ''));
+      const finalUri = copyAttachmentToStorage(asset.uri, fileName);
       insertAttachment(recording.id, 'pdf', finalUri, fileName);
       reloadAttachments();
     } catch (e) {
@@ -907,7 +923,7 @@ export default function DetailScreen() {
                   <TouchableOpacity
                     key={att.id}
                     style={[styles.pdfChip, { borderColor: colors.icon + '44', backgroundColor: colors.icon + '10' }]}
-                    onPress={() => Linking.openURL(att.uri).catch(() => Sharing.shareAsync(att.uri, { mimeType: 'application/pdf' }))}
+                    onPress={() => Sharing.shareAsync(att.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' })}
                     onLongPress={() => handleDeleteAttachment(att)}
                     activeOpacity={0.7}
                   >
@@ -918,6 +934,13 @@ export default function DetailScreen() {
 
                 {/* Add buttons */}
                 <View style={styles.attachAddRow}>
+                  <TouchableOpacity
+                    style={[styles.attachAddBtn, { borderColor: colors.icon + '44' }]}
+                    onPress={handleTakePhoto}
+                  >
+                    <Ionicons name="camera-outline" size={18} color={colors.tint} />
+                    <Text style={[styles.attachAddText, { color: colors.tint }]}>Kamera</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.attachAddBtn, { borderColor: colors.icon + '44' }]}
                     onPress={handlePickImage}

@@ -90,6 +90,35 @@ function writeToDocuments(cacheUri: string, title: string): string {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
+ * Copies a photo or PDF attachment to permanent storage, preserving its
+ * original extension (unlike copyToPermanentStorage which forces .m4a).
+ */
+export function copyAttachmentToStorage(cacheUri: string, originalFileName: string): string {
+  const srcFile = new File(cacheUri);
+  if (!srcFile.exists) throw new Error(`Source file not found: ${cacheUri}`);
+
+  const extMatch = originalFileName.match(/\.([a-zA-Z0-9]+)$/);
+  const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
+  const base = originalFileName.replace(/\.[^.]+$/, '')
+    .trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-åäöÅÄÖ]/g, '') || 'attachment';
+
+  const attDir = new Directory(Paths.document, 'attachments');
+  attDir.create({ intermediates: true, idempotent: true });
+
+  let filename = `${base}${ext}`;
+  let destFile = new File(attDir, filename);
+  let n = 2;
+  while (destFile.exists) {
+    filename = `${base}_${n}${ext}`;
+    destFile = new File(attDir, filename);
+    n++;
+  }
+
+  srcFile.copy(destFile);
+  return destFile.uri;
+}
+
+/**
  * Copies a cache-directory recording to permanent storage and returns its URI.
  *
  * Android : Tier 1 — native MediaStore → Music/VoiceRecorder/ (all Android versions)

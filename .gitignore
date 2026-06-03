@@ -50,3 +50,8 @@ voicerecorder_handoff_v2.md
 voicerecorder_architecture.md
 adb_logs.txt
 prompt.txt
+
+# Local assets — not tracked in git
+assets/funktioner.txt
+Screenshot*.jpg
+Screenshot*.png
