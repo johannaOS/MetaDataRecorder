@@ -364,22 +364,13 @@ export default function DetailScreen() {
     if (!recording) return;
     const s = Math.max(TRANSPOSE_RANGE.min, Math.min(TRANSPOSE_RANGE.max, semitones));
     setTransposeSteps(s);
-    if (s === 0) {
-      await loadSoundUri(recording.filePath);
-      return;
-    }
-    setTransposeProcessing(true);
-    setTransposePct(0);
-    try {
-      const processed = await transposeRecording(recording.id, recording.filePath, s, setTransposePct);
-      await loadSoundUri(processed);
-    } catch (e) {
-      Sentry.captureException(e, { tags: { flow: 'applyTranspose' } });
-      Alert.alert('Transponering misslyckades', String(e));
-      setTransposeSteps(0);
-    } finally {
-      setTransposeProcessing(false);
-    }
+    if (s === 0) return;
+    // ffmpeg unavailable — show informative message, reset steps
+    Alert.alert(
+      'Transponering ej tillgänglig',
+      'Funktionen kräver ett uppdaterat FFmpeg-paket för Expo SDK 54. UI är klart — väntar på biblioteksstöd.',
+    );
+    setTransposeSteps(0);
   }
 
   function reloadBookmarks() {
