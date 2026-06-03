@@ -31,12 +31,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Attachment, Bookmark, deleteAttachment, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getAttachmentsByRecording, getBookmarksByRecording, getRecordingById, insertAttachment, insertBookmark, Keyword, parseCustomData, parseTags, Recording, updateBookmarkLabel, updateRecording } from '@/lib/db';
+import { Attachment, Bookmark, deleteAttachment, deleteBookmark, deleteRecording, getAllKeywords, getAllUniqueTags, getAttachmentsByRecording, getBookmarksByRecording, getRecordingById, insertAttachment, insertBookmark, insertRecording, Keyword, parseCustomData, parseTags, Recording, updateBookmarkLabel, updateRecording } from '@/lib/db';
 import { tagColor } from '@/lib/tagColors';
 import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
 import { generateSafeFilename } from '@/lib/filename';
 import { copyAttachmentToStorage, copyToPermanentStorage } from '@/lib/saveRecording';
+import { cutKeepSelected, cutRemoveSelected } from '@/lib/audioEdit';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
@@ -132,6 +133,22 @@ export default function DetailScreen() {
   // Ref kept in sync with durationMs so PanResponder callbacks can read it without stale closures
   const durationMsRef = useRef(0);
   useEffect(() => { durationMsRef.current = durationMs; }, [durationMs]);
+
+  // ── Cut mode ──────────────────────────────────────────────────────────────
+  const [cutMode, setCutMode] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [selStart, setSelStart] = useState(0);
+  const [selEnd, setSelEnd] = useState(0);
+  const selStartRef = useRef(0);
+  const selEndRef = useRef(0);
+  const [isCutProcessing, setIsCutProcessing] = useState(false);
+
+  // Waveform total width — scales with zoom in cut mode
+  const waveformTotalW = WAVEFORM_BARS * (BAR_W * (cutMode ? zoomLevel : 1) + BAR_GAP);
+  const waveformTotalWRef = useRef(waveformTotalW);
+  useEffect(() => { waveformTotalWRef.current = waveformTotalW; }, [waveformTotalW]);
+  useEffect(() => { selStartRef.current = selStart; }, [selStart]);
+  useEffect(() => { selEndRef.current = selEnd; }, [selEnd]);
 
   const waveformBars = useMemo(
     () => generateWaveformBars(recording?.id ?? 1),
@@ -320,7 +337,7 @@ export default function DetailScreen() {
     onPanResponderMove: (_, g) => {
       const dur = durationMsRef.current;
       if (dur === 0) return;
-      const newPos = Math.max(0, Math.min(dur, abDragStartMs.current + g.dx * dur / WAVEFORM_TOTAL_W));
+      const newPos = Math.max(0, Math.min(dur, abDragStartMs.current + g.dx * dur / waveformTotalWRef.current));
       loopARef.current = newPos;
       setLoopA(newPos);
     },
@@ -335,9 +352,40 @@ export default function DetailScreen() {
     onPanResponderMove: (_, g) => {
       const dur = durationMsRef.current;
       if (dur === 0) return;
-      const newPos = Math.max(0, Math.min(dur, abDragStartMs.current + g.dx * dur / WAVEFORM_TOTAL_W));
+      const newPos = Math.max(0, Math.min(dur, abDragStartMs.current + g.dx * dur / waveformTotalWRef.current));
       loopBRef.current = newPos;
       setLoopB(newPos);
+    },
+    onPanResponderRelease: () => {},
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  // Selection handle PanResponders (cut mode)
+  const selStartPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { abDragStartMs.current = selStartRef.current; },
+    onPanResponderMove: (_, g) => {
+      const dur = durationMsRef.current;
+      if (dur === 0) return;
+      const newPos = Math.max(0, Math.min(selEndRef.current - 500, abDragStartMs.current + g.dx * dur / waveformTotalWRef.current));
+      selStartRef.current = newPos;
+      setSelStart(newPos);
+    },
+    onPanResponderRelease: () => {},
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  const selEndPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { abDragStartMs.current = selEndRef.current; },
+    onPanResponderMove: (_, g) => {
+      const dur = durationMsRef.current;
+      if (dur === 0) return;
+      const newPos = Math.max(selStartRef.current + 500, Math.min(dur, abDragStartMs.current + g.dx * dur / waveformTotalWRef.current));
+      selEndRef.current = newPos;
+      setSelEnd(newPos);
     },
     onPanResponderRelease: () => {},
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,10 +395,10 @@ export default function DetailScreen() {
   useEffect(() => {
     if (!waveformScrollRef.current || durationMs === 0 || waveformContainerWidth === 0) return;
     const pos = seekPositionMs ?? positionMs_live;
-    const x = (pos / durationMs) * WAVEFORM_TOTAL_W;
+    const x = (pos / durationMs) * waveformTotalW;
     waveformScrollRef.current.scrollTo({ x, animated: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth]);
+  }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth, waveformTotalW]);
 
   function reloadBookmarks() {
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -445,6 +493,74 @@ export default function DetailScreen() {
         reloadAttachments();
       }},
     ]);
+  }
+
+  function enterCutMode() {
+    if (!recording) return;
+    const start = durationMs * 0.25;
+    const end   = durationMs * 0.75;
+    setSelStart(start); selStartRef.current = start;
+    setSelEnd(end);     selEndRef.current   = end;
+    setZoomLevel(1);
+    setCutMode(true);
+  }
+
+  function exitCutMode() {
+    setCutMode(false);
+    setZoomLevel(1);
+    setIsCutProcessing(false);
+  }
+
+  async function executeCut(keepSelected: boolean) {
+    if (!recording) return;
+    setIsCutProcessing(true);
+    try {
+      const outputUri = keepSelected
+        ? await cutKeepSelected(recording.filePath, selStart, selEnd)
+        : await cutRemoveSelected(recording.filePath, selStart, selEnd, durationMs);
+
+      // Pause playback before replacing the file
+      await soundRef.current?.pauseAsync().catch(() => {});
+
+      Alert.alert(
+        'Klippning klar',
+        keepSelected ? 'Behåll det markerade avsnittet?' : 'Ta bort det markerade avsnittet?',
+        [
+          { text: S.cancel, style: 'cancel', onPress: () => setIsCutProcessing(false) },
+          {
+            text: 'Spara som ny inspelning',
+            onPress: async () => {
+              try {
+                const finalUri = await copyToPermanentStorage(outputUri, recording.name + ' (klippt)');
+                insertRecording({
+                  name: recording.name + ' (klippt)',
+                  ofAfter: recording.ofAfter,
+                  origin: recording.origin,
+                  songType: recording.songType,
+                  performer: recording.performer,
+                  notes: recording.notes,
+                  filePath: finalUri,
+                  duration: Math.round(keepSelected ? (selEnd - selStart) / 1000 : (durationMs - (selEnd - selStart)) / 1000),
+                  createdAt: new Date().toISOString(),
+                  customData: recording.customData,
+                  tags: recording.tags,
+                });
+                exitCutMode();
+                router.push('/library');
+              } catch (e) {
+                Sentry.captureException(e, { tags: { flow: 'saveCut' } });
+                Alert.alert(S.error, String(e));
+                setIsCutProcessing(false);
+              }
+            },
+          },
+        ],
+      );
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'executeCut' } });
+      Alert.alert(S.error, String(e));
+      setIsCutProcessing(false);
+    }
   }
 
   function setLoop(point: 'A' | 'B', posMs: number) {
@@ -623,12 +739,16 @@ export default function DetailScreen() {
     <>
       <Stack.Screen
         options={{
-          title: isEditing ? S.editScreenTitle : (recording.name || S.recordingScreenTitle),
+          title: cutMode ? 'Klipp ljud' : isEditing ? S.editScreenTitle : (recording.name || S.recordingScreenTitle),
           headerRight: () => (
             <View style={styles.headerBtns}>
               {isEditing ? (
                 <TouchableOpacity onPress={() => router.push('/fields')} style={styles.headerBtn} hitSlop={8}>
                   <Ionicons name="create-outline" size={22} color={colors.text} />
+                </TouchableOpacity>
+              ) : cutMode ? (
+                <TouchableOpacity onPress={exitCutMode} style={styles.headerBtn} hitSlop={8}>
+                  <Ionicons name="close-outline" size={24} color={colors.text} />
                 </TouchableOpacity>
               ) : (
                 <>
@@ -640,6 +760,9 @@ export default function DetailScreen() {
                   )}
                   <TouchableOpacity onPress={handleShare} style={styles.headerBtn} hitSlop={8}>
                     <Ionicons name="share-outline" size={22} color={colors.text} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={enterCutMode} style={styles.headerBtn} hitSlop={8}>
+                    <Ionicons name="cut-outline" size={22} color={colors.text} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={startEditing} style={styles.headerBtn} hitSlop={8}>
                     <Ionicons name="pencil-outline" size={22} color={colors.text} />
@@ -669,18 +792,42 @@ export default function DetailScreen() {
             <Text style={[styles.seekTime, { color: colors.text }]}>{formatMs(positionMs)}</Text>
             <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
 
-            {/* ── ABOVE WAVEFORM: bookmark list (left) + add bookmark (right) ── */}
-            <View style={styles.aboveWaveRow}>
-              <TouchableOpacity onPress={() => setShowBookmarkList(true)} hitSlop={12} activeOpacity={0.7}>
-                <Ionicons name="bookmark" size={22} color={bookmarks.length > 0 ? colors.tint : colors.icon + '66'} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleAddBookmark} hitSlop={12} activeOpacity={0.7}>
-                <View style={{ position: 'relative' }}>
-                  <Ionicons name="bookmark-outline" size={22} color={colors.icon} />
-                  <Text style={[styles.bookmarkPlusSign, { color: colors.icon }]}>+</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
+            {/* ── ABOVE WAVEFORM ──────────────────────────────────────────── */}
+            {cutMode ? (
+              // Cut mode: zoom controls
+              <View style={styles.aboveWaveRow}>
+                <TouchableOpacity
+                  hitSlop={12} activeOpacity={0.7}
+                  onPress={() => setZoomLevel(z => Math.max(1, z / 2))}
+                  style={{ opacity: zoomLevel <= 1 ? 0.3 : 1 }}
+                >
+                  <Ionicons name="remove-circle-outline" size={24} color={colors.icon} />
+                </TouchableOpacity>
+                <Text style={{ color: colors.icon, fontSize: 13, fontWeight: '600' }}>
+                  Zoom ×{zoomLevel}
+                </Text>
+                <TouchableOpacity
+                  hitSlop={12} activeOpacity={0.7}
+                  onPress={() => setZoomLevel(z => Math.min(8, z * 2))}
+                  style={{ opacity: zoomLevel >= 8 ? 0.3 : 1 }}
+                >
+                  <Ionicons name="add-circle-outline" size={24} color={colors.icon} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Normal mode: bookmark controls
+              <View style={styles.aboveWaveRow}>
+                <TouchableOpacity onPress={() => setShowBookmarkList(true)} hitSlop={12} activeOpacity={0.7}>
+                  <Ionicons name="bookmark" size={22} color={bookmarks.length > 0 ? colors.tint : colors.icon + '66'} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleAddBookmark} hitSlop={12} activeOpacity={0.7}>
+                  <View style={{ position: 'relative' }}>
+                    <Ionicons name="bookmark-outline" size={22} color={colors.icon} />
+                    <Text style={[styles.bookmarkPlusSign, { color: colors.icon }]}>+</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* ── WAVEFORM ──────────────────────────────────────────────────── */}
             <View
@@ -699,12 +846,17 @@ export default function DetailScreen() {
                 <View style={styles.waveformInner}>
                   {waveformBars.map((h, i) => {
                     const played = durationMs > 0 && (positionMs_live / durationMs) * WAVEFORM_BARS > i;
+                    const barMs = (i / WAVEFORM_BARS) * durationMs;
+                    const inSelection = cutMode && barMs >= selStart && barMs <= selEnd;
                     return (
                       <View
                         key={i}
                         style={[styles.waveBar, {
+                          width: BAR_W * (cutMode ? zoomLevel : 1),
                           height: h,
-                          backgroundColor: played ? colors.text : colors.icon + '44',
+                          backgroundColor: inSelection
+                            ? colors.tint
+                            : played ? colors.text : colors.icon + '44',
                         }]}
                       />
                     );
@@ -714,6 +866,26 @@ export default function DetailScreen() {
 
               {/* Fixed centre playhead */}
               <View style={styles.wavePlayhead} pointerEvents="none" />
+
+              {/* Cut mode: selection handles (zIndex 4, above A/B) */}
+              {cutMode && durationMs > 0 && [
+                { ms: selStart, pan: selStartPanResponder, side: 'L' },
+                { ms: selEnd,   pan: selEndPanResponder,   side: 'R' },
+              ].map(({ ms, pan, side }) => {
+                const screenX = waveformContainerWidth / 2
+                  + (ms - positionMs) / durationMs * waveformTotalW;
+                if (screenX < -20 || screenX > waveformContainerWidth + 20) return null;
+                return (
+                  <View
+                    key={side}
+                    style={[styles.selHandleView, { left: screenX - 12, zIndex: 4 }]}
+                    {...pan.panHandlers}
+                  >
+                    <Text style={[styles.selHandleLabel, { color: colors.tint }]}>{side}</Text>
+                    <View style={[styles.selHandleLine, { backgroundColor: colors.tint }]} />
+                  </View>
+                );
+              })}
 
               {/* Invisible slider — rendered before markers so markers have higher z-order */}
               <Slider
@@ -729,7 +901,7 @@ export default function DetailScreen() {
               {/* Bookmark markers — zIndex 2 so long-press is not blocked by slider */}
               {durationMs > 0 && bookmarks.map((bm, idx) => {
                 const screenX = waveformContainerWidth / 2
-                  + (bm.position_ms - positionMs) / durationMs * WAVEFORM_TOTAL_W;
+                  + (bm.position_ms - positionMs) / durationMs * waveformTotalW;
                 if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
                 return (
                   <TouchableOpacity
@@ -758,7 +930,7 @@ export default function DetailScreen() {
               ].map(({ pos, label, color, panResponder, loopKey }) => {
                 if (pos === null) return null;
                 const screenX = waveformContainerWidth / 2
-                  + (pos - positionMs) / durationMs * WAVEFORM_TOTAL_W;
+                  + (pos - positionMs) / durationMs * waveformTotalW;
                 if (screenX < -20 || screenX > waveformContainerWidth + 20) return null;
                 return (
                   <View
@@ -783,8 +955,41 @@ export default function DetailScreen() {
               })}
             </View>
 
+            {/* ── CUT MODE CONTROLS ────────────────────────────────────────── */}
+            {cutMode && (
+              <View style={styles.cutControlsRow}>
+                {isCutProcessing ? (
+                  <Text style={{ color: colors.icon, fontSize: 14 }}>Bearbetar…</Text>
+                ) : (
+                  <>
+                    <View style={styles.cutSelInfo}>
+                      <Text style={[styles.cutSelLabel, { color: colors.icon }]}>
+                        L {formatMs(selStart)} — R {formatMs(selEnd)} ({formatMs(selEnd - selStart)})
+                      </Text>
+                    </View>
+                    <View style={styles.cutButtons}>
+                      <TouchableOpacity
+                        style={[styles.cutBtn, { borderColor: colors.tint }]}
+                        onPress={() => executeCut(true)}
+                      >
+                        <Ionicons name="cut-outline" size={16} color={colors.tint} />
+                        <Text style={[styles.cutBtnText, { color: colors.tint }]}>Behåll markerat</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.cutBtn, { borderColor: '#e53935' }]}
+                        onPress={() => executeCut(false)}
+                      >
+                        <Ionicons name="cut-outline" size={16} color="#e53935" />
+                        <Text style={[styles.cutBtnText, { color: '#e53935' }]}>Ta bort markerat</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+
             {/* ── CONTROLS ROW: A/B · skip-5 · play · skip+5 · speed ─────── */}
-            <View style={styles.controlsRow}>
+            {!cutMode && <View style={styles.controlsRow}>
               {/* A/B loop button */}
               <TouchableOpacity
                 style={styles.controlsSideBtn}
@@ -838,10 +1043,10 @@ export default function DetailScreen() {
                   ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </View>}
 
             {/* Speed panel (expandable below controls row) */}
-            {showSpeedPanel && (
+            {showSpeedPanel && !cutMode && (
               <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
                 <View style={styles.speedPresets}>
                   {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(r => (
@@ -1338,6 +1543,42 @@ const styles = StyleSheet.create({
   abIconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center', width: 24, height: 24 },
   abOverlay: { position: 'absolute', fontSize: 6, fontWeight: '800', letterSpacing: 0.5 },
   playBtn: {},
+
+  // Selection handles (cut mode)
+  selHandleView: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 24,
+  },
+  selHandleLabel: { fontSize: 10, fontWeight: '800', lineHeight: 13 },
+  selHandleLine: { width: 2, flex: 1, borderRadius: 1 },
+
+  // Cut controls
+  cutControlsRow: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  cutSelInfo: { alignItems: 'center' },
+  cutSelLabel: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  cutButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  cutBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  cutBtnText: { fontSize: 13, fontWeight: '600' },
 
   // Bookmark add icon plus sign
   bookmarkPlusSign: {

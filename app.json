@@ -45,6 +45,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      ["ffmpeg-kit-react-native", { "package": "audio" }],
       "expo-router",
       "expo-task-manager",
       "./plugins/withForegroundMicrophoneService",
