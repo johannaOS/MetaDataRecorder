@@ -37,6 +37,7 @@ import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
 import { generateSafeFilename } from '@/lib/filename';
 import { copyAttachmentToStorage, copyToPermanentStorage } from '@/lib/saveRecording';
+import { processSpeed } from '@/lib/audioSpeed';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
@@ -128,6 +129,10 @@ export default function DetailScreen() {
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const playbackRateRef = useRef(1.0);
   const [showSpeedPanel, setShowSpeedPanel] = useState(false);
+  const [speedProcessing, setSpeedProcessing] = useState(false);
+  const [speedProcessPct, setSpeedProcessPct] = useState(0);
+  // URI of the currently loaded sound source (may differ from recording.filePath when speed != 1)
+  const [activeUri, setActiveUri] = useState<string | null>(null);
 
   // Ref kept in sync with durationMs so PanResponder callbacks can read it without stale closures
   const durationMsRef = useRef(0);
@@ -302,13 +307,66 @@ export default function DetailScreen() {
     setSeekPositionMs(null);
   }
 
-  function applyRate(rate: number) {
+  async function applyRate(rate: number) {
+    if (!recording) return;
     const r = Math.round(rate * 100) / 100;
     playbackRateRef.current = r;
     setPlaybackRate(r);
-    soundRef.current?.setStatusAsync({ rate: r, shouldCorrectPitch: true, pitchCorrectionQuality: 'high' }).catch((e) => {
-      console.error('[Detail] setRate error:', e);
-    });
+
+    if (r === 1.0) {
+      // Back to original — reload original file
+      await loadSoundUri(recording.filePath);
+      return;
+    }
+
+    // Offline processing for quality
+    setSpeedProcessing(true);
+    setSpeedProcessPct(0);
+    try {
+      const processed = await processSpeed(recording.id, recording.filePath, r, setSpeedProcessPct);
+      await loadSoundUri(processed);
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'applyRate' } });
+      // Fall back to real-time pitch correction (lower quality)
+      soundRef.current?.setStatusAsync({ rate: r, shouldCorrectPitch: true, pitchCorrectionQuality: 'high' }).catch(() => {});
+      Alert.alert('Bearbetning misslyckades', 'Spelar upp med sämre ljud. Prova igen.');
+    } finally {
+      setSpeedProcessing(false);
+    }
+  }
+
+  async function loadSoundUri(uri: string) {
+    const pos = positionMs_live;
+    const wasPlaying = isPlaying;
+    await soundRef.current?.pauseAsync().catch(() => {});
+    await soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
+    setActiveUri(uri);
+    // The useEffect watching recording?.filePath won't fire since filePath hasn't changed.
+    // We re-create the sound manually here.
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { progressUpdateIntervalMillis: 100 },
+        (status) => {
+          if (!status.isLoaded) return;
+          setIsPlaying(status.isPlaying);
+          setPositionMs(status.positionMillis);
+          setDurationMs(status.durationMillis ?? 0);
+          setDidJustFinish(!!status.didJustFinish);
+          if (status.didJustFinish) setIsPlaying(false);
+          const a = loopARef.current; const b = loopBRef.current;
+          if (status.isPlaying && a !== null && b !== null && b > a && status.positionMillis >= b) {
+            soundRef.current?.setPositionAsync(a).catch(() => {});
+          }
+        },
+      );
+      soundRef.current = sound;
+      if (pos > 0) await sound.setPositionAsync(pos).catch(() => {});
+      if (wasPlaying) await sound.playAsync().catch(() => {});
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'loadSoundUri' } });
+    }
   }
 
   // PanResponders for dragging A/B loop points along the waveform
@@ -833,17 +891,27 @@ export default function DetailScreen() {
                 style={styles.controlsSideBtn}
                 onPress={() => setShowSpeedPanel(v => !v)}
                 hitSlop={8}
+                disabled={speedProcessing}
               >
-                <Text style={[styles.controlsSpeedValue, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
-                  ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
-                </Text>
+                {speedProcessing ? (
+                  <Text style={[styles.controlsSpeedValue, { color: colors.icon }]}>…</Text>
+                ) : (
+                  <Text style={[styles.controlsSpeedValue, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
+                    ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
 
             {/* Speed panel (expandable below controls row) */}
             {showSpeedPanel && (
               <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
-                <View style={styles.speedPresets}>
+                {speedProcessing && (
+                  <Text style={{ color: colors.icon, fontSize: 13, textAlign: 'center' }}>
+                    Bearbetar… {speedProcessPct > 0 ? `${Math.round(speedProcessPct)}%` : ''}
+                  </Text>
+                )}
+                <View style={[styles.speedPresets, { opacity: speedProcessing ? 0.4 : 1 }]}>
                   {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(r => (
                     <TouchableOpacity
                       key={r}
