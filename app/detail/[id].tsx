@@ -4,7 +4,8 @@ import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import { cacheDirectory, copyAsync, deleteAsync } from 'expo-file-system/legacy';
+import { cacheDirectory, copyAsync, deleteAsync, getContentUriAsync } from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as ImagePicker from 'expo-image-picker';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -214,7 +215,7 @@ export default function DetailScreen() {
         soundRef.current = sound;
 
         if (playbackRateRef.current !== 1.0) {
-          await sound.setStatusAsync({ rate: playbackRateRef.current, shouldCorrectPitch: true }).catch(() => {});
+          await sound.setStatusAsync({ rate: playbackRateRef.current, shouldCorrectPitch: true, pitchCorrectionQuality: 'high' }).catch(() => {});
         }
 
         // Auto-play or seek to handoff position once loaded
@@ -300,7 +301,7 @@ export default function DetailScreen() {
     const r = Math.round(rate * 100) / 100;
     playbackRateRef.current = r;
     setPlaybackRate(r);
-    soundRef.current?.setStatusAsync({ rate: r, shouldCorrectPitch: true }).catch((e) => {
+    soundRef.current?.setStatusAsync({ rate: r, shouldCorrectPitch: true, pitchCorrectionQuality: 'high' }).catch((e) => {
       console.error('[Detail] setRate error:', e);
     });
   }
@@ -308,7 +309,7 @@ export default function DetailScreen() {
   // Scroll waveform so playhead stays centered
   useEffect(() => {
     if (!waveformScrollRef.current || durationMs === 0 || waveformContainerWidth === 0) return;
-    const x = Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
+    const x = (positionMs_live / durationMs) * WAVEFORM_TOTAL_W;
     waveformScrollRef.current.scrollTo({ x, animated: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positionMs_live, durationMs, waveformContainerWidth]);
@@ -636,7 +637,10 @@ export default function DetailScreen() {
                 <Ionicons name="bookmark" size={22} color={bookmarks.length > 0 ? colors.tint : colors.icon + '66'} />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleAddBookmark} hitSlop={12} activeOpacity={0.7}>
-                <Ionicons name="bookmark-outline" size={22} color={colors.icon} />
+                <View style={{ position: 'relative' }}>
+                  <Ionicons name="bookmark-outline" size={22} color={colors.icon} />
+                  <Text style={[styles.bookmarkPlusSign, { color: colors.icon }]}>+</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -675,15 +679,8 @@ export default function DetailScreen() {
 
               {/* Bookmark markers */}
               {durationMs > 0 && bookmarks.map((bm, idx) => {
-                const x = (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W
-                        - Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2)
-                        + waveformContainerWidth / 2 - (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W
-                        + (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W
-                        - Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
-                // Simplify: markerX = barXInContent - scrollOffset, displayed within container
-                const scrollOff = Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
-                const barX = (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W + waveformContainerWidth / 2;
-                const screenX = barX - scrollOff;
+                const screenX = waveformContainerWidth / 2
+                  + (bm.position_ms - positionMs_live) / durationMs * WAVEFORM_TOTAL_W;
                 if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
                 return (
                   <TouchableOpacity
@@ -707,19 +704,23 @@ export default function DetailScreen() {
 
               {/* A/B markers */}
               {durationMs > 0 && [
-                { pos: loopA, label: 'A', color: '#00A878', onLp: () => clearLoop('A') },
-                { pos: loopB, label: 'B', color: '#e53935', onLp: () => clearLoop('B') },
-              ].map(({ pos, label, color, onLp }) => {
+                { pos: loopA, label: 'A', color: '#00A878', key: 'A' as const },
+                { pos: loopB, label: 'B', color: '#e53935', key: 'B' as const },
+              ].map(({ pos, label, color, key }) => {
                 if (pos === null) return null;
-                const scrollOff = Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
-                const screenX = (pos / durationMs) * WAVEFORM_TOTAL_W + waveformContainerWidth / 2 - scrollOff;
+                const screenX = waveformContainerWidth / 2
+                  + (pos - positionMs_live) / durationMs * WAVEFORM_TOTAL_W;
                 if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
                 return (
                   <TouchableOpacity
                     key={label}
                     style={[styles.waveMarker, { left: screenX }]}
                     onPress={() => onSeekComplete(pos)}
-                    onLongPress={onLp}
+                    onLongPress={() => Alert.alert(`${label}-punkt`, undefined, [
+                      { text: S.cancel, style: 'cancel' },
+                      { text: 'Flytta hit', onPress: () => setLoop(key, positionMs_live) },
+                      { text: 'Ta bort', style: 'destructive', onPress: () => clearLoop(key) },
+                    ])}
                     hitSlop={10}
                   >
                     <Text style={[styles.waveMarkerLabel, { color }]}>{label}</Text>
@@ -740,14 +741,11 @@ export default function DetailScreen() {
               />
             </View>
 
-            {/* ── BELOW WAVEFORM: A/B loop + Speed ────────────────────────── */}
-            <View style={styles.belowWaveRow}>
-              {/* A/B compound button */}
+            {/* ── CONTROLS ROW: A/B · skip-5 · play · skip+5 · speed ─────── */}
+            <View style={styles.controlsRow}>
+              {/* A/B loop button */}
               <TouchableOpacity
-                style={[styles.belowBtn, {
-                  borderColor: (loopA !== null || loopB !== null) ? colors.tint : colors.icon + '33',
-                  backgroundColor: (loopA !== null && loopB !== null) ? colors.tint + '14' : 'transparent',
-                }]}
+                style={styles.controlsSideBtn}
                 onPress={() => {
                   if (loopA === null) setLoop('A', positionMs_live);
                   else if (loopB === null) setLoop('B', positionMs_live);
@@ -760,30 +758,47 @@ export default function DetailScreen() {
                   <Ionicons name="repeat" size={22} color={(loopA !== null || loopB !== null) ? colors.tint : colors.icon} />
                   <Text style={[styles.abOverlay, { color: (loopA !== null || loopB !== null) ? colors.tint : colors.icon }]}>AB</Text>
                 </View>
-                <Text style={[styles.belowBtnLabel, { color: (loopA !== null || loopB !== null) ? colors.tint : colors.icon }]}>
-                  {loopA !== null && loopB !== null
-                    ? `${formatMs(loopA)}–${formatMs(loopB)}`
-                    : loopA !== null ? `A ${formatMs(loopA)}`
-                    : 'A/B-loop'}
-                </Text>
+                {(loopA !== null || loopB !== null) && (
+                  <Text style={[styles.controlsSideBtnLabel, { color: colors.tint }]}>
+                    {loopA !== null && loopB !== null ? `${formatMs(loopA)}–${formatMs(loopB)}` : loopA !== null ? `A ${formatMs(loopA)}` : `B ${formatMs(loopB!)}`}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Skip back 5s */}
+              <TouchableOpacity
+                onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
+                hitSlop={12} activeOpacity={0.6}
+              >
+                <MaterialIcons name="replay-5" size={34} color={colors.icon} />
+              </TouchableOpacity>
+
+              {/* Play / pause */}
+              <TouchableOpacity onPress={togglePlay} activeOpacity={0.7}>
+                <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={68} color={colors.text} />
+              </TouchableOpacity>
+
+              {/* Skip forward 5s */}
+              <TouchableOpacity
+                onPress={() => soundRef.current?.setPositionAsync(Math.min(durationMs, positionMs + 5000)).catch(() => {})}
+                hitSlop={12} activeOpacity={0.6}
+              >
+                <MaterialIcons name="forward-5" size={34} color={colors.icon} />
               </TouchableOpacity>
 
               {/* Speed button */}
               <TouchableOpacity
-                style={[styles.belowBtn, {
-                  borderColor: playbackRate !== 1.0 ? colors.tint : colors.icon + '33',
-                }]}
+                style={styles.controlsSideBtn}
                 onPress={() => setShowSpeedPanel(v => !v)}
                 hitSlop={8}
               >
-                <Text style={[styles.belowBtnValue, { color: playbackRate !== 1.0 ? colors.tint : colors.text }]}>
+                <Text style={[styles.controlsSpeedValue, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
                   ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
                 </Text>
-                <Text style={[styles.belowBtnLabel, { color: colors.icon }]}>Hastighet</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Speed panel (expandable) */}
+            {/* Speed panel (expandable below controls row) */}
             {showSpeedPanel && (
               <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
                 <View style={styles.speedPresets}>
@@ -829,25 +844,6 @@ export default function DetailScreen() {
                 </View>
               </View>
             )}
-
-            {/* ── TRANSPORT: skip-5 · play/pause · skip+5 ──────────────────── */}
-            <View style={styles.transportRow}>
-              <TouchableOpacity
-                onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
-                hitSlop={12} activeOpacity={0.6}
-              >
-                <MaterialIcons name="replay-5" size={36} color={colors.icon} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={togglePlay} activeOpacity={0.7}>
-                <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={72} color={colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => soundRef.current?.setPositionAsync(Math.min(durationMs, positionMs + 5000)).catch(() => {})}
-                hitSlop={12} activeOpacity={0.6}
-              >
-                <MaterialIcons name="forward-5" size={36} color={colors.icon} />
-              </TouchableOpacity>
-            </View>
           </View>
 
           {/* ── Metadata display ───────────────────────────────────────────── */}
@@ -923,7 +919,16 @@ export default function DetailScreen() {
                   <TouchableOpacity
                     key={att.id}
                     style={[styles.pdfChip, { borderColor: colors.icon + '44', backgroundColor: colors.icon + '10' }]}
-                    onPress={() => Sharing.shareAsync(att.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' })}
+                    onPress={async () => {
+                      try {
+                        const contentUri = await getContentUriAsync(att.uri);
+                        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+                          data: contentUri, type: 'application/pdf', flags: 1,
+                        });
+                      } catch {
+                        Sharing.shareAsync(att.uri, { mimeType: 'application/pdf' });
+                      }
+                    }}
                     onLongPress={() => handleDeleteAttachment(att)}
                     activeOpacity={0.7}
                   >
@@ -1251,38 +1256,41 @@ const styles = StyleSheet.create({
   waveMarkerLabel: { fontSize: 9, fontWeight: '800', lineHeight: 11 },
   waveMarkerTick: { width: 2, height: 14, borderRadius: 1 },
 
-  // Below waveform
-  belowWaveRow: {
+  // Combined controls row: [A/B] [◁5] [▶️] [5▷] [×1.0]
+  controlsRow: {
     flexDirection: 'row',
-    width: '100%',
-    gap: 10,
-  },
-  belowBtn: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 3,
+    justifyContent: 'space-between',
+    width: '100%',
   },
-  belowBtnValue: {
-    fontSize: 20,
-    fontWeight: '300',
+  controlsSideBtn: {
+    alignItems: 'center',
+    minWidth: 44,
+  },
+  controlsSideBtnLabel: {
+    fontSize: 9,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  controlsSpeedValue: {
+    fontSize: 15,
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  belowBtnLabel: { fontSize: 11, fontWeight: '500' },
   abIconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center', width: 24, height: 24 },
   abOverlay: { position: 'absolute', fontSize: 6, fontWeight: '800', letterSpacing: 0.5 },
-
-  // Transport row
-  transportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    width: '100%',
-  },
   playBtn: {},
+
+  // Bookmark add icon plus sign
+  bookmarkPlusSign: {
+    position: 'absolute',
+    top: -3,
+    right: -5,
+    fontSize: 12,
+    fontWeight: '900',
+    lineHeight: 14,
+  },
 
   // Bookmark list sheet
   overlayDismiss: {
