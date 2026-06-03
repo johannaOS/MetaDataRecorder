@@ -926,7 +926,10 @@ export default function DetailScreen() {
                           data: contentUri, type: 'application/pdf', flags: 1,
                         });
                       } catch {
-                        Sharing.shareAsync(att.uri, { mimeType: 'application/pdf' });
+                        Alert.alert(
+                          'Ingen PDF-visare hittades',
+                          'Installera en PDF-app (t.ex. Adobe Acrobat eller Google Drive) för att öppna filen.',
+                        );
                       }
                     }}
                     onLongPress={() => handleDeleteAttachment(att)}
