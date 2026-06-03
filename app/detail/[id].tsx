@@ -8,7 +8,7 @@ import { cacheDirectory, copyAsync, deleteAsync } from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -38,6 +38,25 @@ import { generateSafeFilename } from '@/lib/filename';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
+
+// ── Waveform constants ────────────────────────────────────────────────────────
+const WAVEFORM_BARS = 200;
+const BAR_W = 4;
+const BAR_GAP = 2;
+const WAVEFORM_TOTAL_W = WAVEFORM_BARS * (BAR_W + BAR_GAP); // 1200
+const WAVEFORM_H = 100;
+const WAVEFORM_BAR_MAX = 46;
+const WAVEFORM_BAR_MIN = 4;
+
+function generateWaveformBars(seed: number): number[] {
+  const bars: number[] = [];
+  let s = (Math.abs(seed) || 1) >>> 0;
+  for (let i = 0; i < WAVEFORM_BARS; i++) {
+    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+    bars.push(WAVEFORM_BAR_MIN + (s / 0xffffffff) * (WAVEFORM_BAR_MAX - WAVEFORM_BAR_MIN));
+  }
+  return bars;
+}
 
 function formatMs(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -108,13 +127,21 @@ export default function DetailScreen() {
   const playbackRateRef = useRef(1.0);
   const [showSpeedPanel, setShowSpeedPanel] = useState(false);
 
+  const waveformBars = useMemo(
+    () => generateWaveformBars(recording?.id ?? 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recording?.id],
+  );
+
   // Bookmarks + A/B loop
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
   const loopARef = useRef<number | null>(null);
   const loopBRef = useRef<number | null>(null);
-  const [markerBarWidth, setMarkerBarWidth] = useState(0);
+  const [waveformContainerWidth, setWaveformContainerWidth] = useState(0);
+  const waveformScrollRef = useRef<ScrollView>(null);
+  const [showBookmarkList, setShowBookmarkList] = useState(false);
   const [renamingBookmark, setRenamingBookmark] = useState<Bookmark | null>(null);
   const [renameLabel, setRenameLabel] = useState('');
 
@@ -277,6 +304,14 @@ export default function DetailScreen() {
       console.error('[Detail] setRate error:', e);
     });
   }
+
+  // Scroll waveform so playhead stays centered
+  useEffect(() => {
+    if (!waveformScrollRef.current || durationMs === 0 || waveformContainerWidth === 0) return;
+    const x = Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
+    waveformScrollRef.current.scrollTo({ x, animated: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionMs_live, durationMs, waveformContainerWidth]);
 
   function reloadBookmarks() {
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -574,152 +609,173 @@ export default function DetailScreen() {
         >
           {/* ── Player ─────────────────────────────────────────────────────── */}
           <View style={[styles.player, { borderBottomColor: colors.icon + '28' }]}>
-            {/* Time row — large centred time while scrubbing, start/speed/end otherwise */}
-            {seekPositionMs !== null ? (
-              <Text style={[styles.seekTime, { color: colors.text }]}>{formatMs(positionMs)}</Text>
-            ) : (
-              <View style={styles.timeRow}>
-                <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(positionMs)}</Text>
-                <TouchableOpacity
-                  onPress={() => setShowSpeedPanel(v => !v)}
-                  activeOpacity={0.7}
-                  style={[styles.speedBtn, { borderColor: playbackRate !== 1.0 ? colors.tint : colors.icon + '44' }]}
-                >
-                  <Text style={[styles.speedBtnText, { color: playbackRate !== 1.0 ? colors.tint : colors.icon }]}>
-                    ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
-              </View>
-            )}
-            {/* Bookmark + A/B markers above seek bar */}
-            {(bookmarks.length > 0 || loopA !== null || loopB !== null) && durationMs > 0 && (
-              <View
-                style={styles.markerBar}
-                onLayout={e => setMarkerBarWidth(e.nativeEvent.layout.width)}
-              >
-                {bookmarks.map((bm, idx) => {
-                  const pct = Math.min(1, bm.position_ms / durationMs);
-                  return (
-                    <TouchableOpacity
-                      key={bm.id}
-                      style={[styles.markerContainer, { left: `${pct * 100}%` as unknown as number }]}
-                      onPress={() => onSeekComplete(bm.position_ms)}
-                      onLongPress={() => Alert.alert(bm.label, undefined, [
-                        { text: S.cancel, style: 'cancel' },
-                        { text: 'Byt namn', onPress: () => { setRenameLabel(bm.label); setRenamingBookmark(bm); } },
-                        { text: 'Sätt som A', onPress: () => setLoop('A', bm.position_ms) },
-                        { text: 'Sätt som B', onPress: () => setLoop('B', bm.position_ms) },
-                        { text: S.delete, style: 'destructive', onPress: () => handleDeleteBookmark(bm.id) },
-                      ])}
-                      hitSlop={10}
-                    >
-                      <Text style={[styles.markerLabel, { color: colors.tint }]}>{idx + 1}</Text>
-                      <View style={[styles.markerTick, { backgroundColor: colors.tint }]} />
-                    </TouchableOpacity>
-                  );
-                })}
-                {loopA !== null && (
-                  <TouchableOpacity
-                    style={[styles.markerContainer, { left: `${Math.min(1, loopA / durationMs) * 100}%` as unknown as number }]}
-                    onPress={() => onSeekComplete(loopA)}
-                    onLongPress={() => clearLoop('A')}
-                    hitSlop={10}
-                  >
-                    <Text style={[styles.markerLabel, { color: '#00A878' }]}>A</Text>
-                    <View style={[styles.markerTick, { backgroundColor: '#00A878' }]} />
-                  </TouchableOpacity>
-                )}
-                {loopB !== null && (
-                  <TouchableOpacity
-                    style={[styles.markerContainer, { left: `${Math.min(1, loopB / durationMs) * 100}%` as unknown as number }]}
-                    onPress={() => onSeekComplete(loopB)}
-                    onLongPress={() => clearLoop('B')}
-                    hitSlop={10}
-                  >
-                    <Text style={[styles.markerLabel, { color: '#e53935' }]}>B</Text>
-                    <View style={[styles.markerTick, { backgroundColor: '#e53935' }]} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
 
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={Math.max(durationMs, 1)}
-              value={positionMs}
-              minimumTrackTintColor={colors.text}
-              maximumTrackTintColor={colors.icon + '44'}
-              thumbTintColor={colors.text}
-              onSlidingStart={onSeekStart}
-              onValueChange={(v) => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
-              onSlidingComplete={onSeekComplete}
-            />
-            {/* Controls row: add-bookmark · skip-5 · play/pause · skip+5 · A · B [· clear] */}
-            <View style={styles.controls}>
-              <TouchableOpacity onPress={handleAddBookmark} hitSlop={10} activeOpacity={0.7}>
-                <Ionicons name="bookmark-outline" size={26} color={colors.tint} />
+            {/* Large time + total duration */}
+            <Text style={[styles.seekTime, { color: colors.text }]}>{formatMs(positionMs)}</Text>
+            <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
+
+            {/* ── ABOVE WAVEFORM: bookmark list (left) + add bookmark (right) ── */}
+            <View style={styles.aboveWaveRow}>
+              <TouchableOpacity onPress={() => setShowBookmarkList(true)} hitSlop={12} activeOpacity={0.7}>
+                <Ionicons name="bookmark" size={22} color={bookmarks.length > 0 ? colors.tint : colors.icon + '66'} />
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
-                hitSlop={12}
-                activeOpacity={0.6}
-              >
-                <MaterialIcons name="replay-5" size={34} color={colors.icon} />
+              <TouchableOpacity onPress={handleAddBookmark} hitSlop={12} activeOpacity={0.7}>
+                <Ionicons name="bookmark-outline" size={22} color={colors.icon} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={togglePlay} style={styles.playBtn} activeOpacity={0.7}>
-                <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={68} color={colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => soundRef.current?.setPositionAsync(Math.min(durationMs, positionMs + 5000)).catch(() => {})}
-                hitSlop={12}
-                activeOpacity={0.6}
-              >
-                <MaterialIcons name="forward-5" size={34} color={colors.icon} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.loopBtn, loopA !== null
-                  ? { borderColor: '#00A878', backgroundColor: '#00A87818' }
-                  : { borderColor: colors.icon + '44' }]}
-                onPress={() => setLoop('A', positionMs_live)}
-                onLongPress={() => clearLoop('A')}
-                hitSlop={8}
-              >
-                <Text style={[styles.loopBtnText, { color: loopA !== null ? '#00A878' : colors.icon }]}>
-                  {loopA !== null ? `A·${formatMs(loopA)}` : 'A'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.loopBtn, loopB !== null
-                  ? { borderColor: '#e53935', backgroundColor: '#e5393518' }
-                  : { borderColor: colors.icon + '44' }]}
-                onPress={() => setLoop('B', positionMs_live)}
-                onLongPress={() => clearLoop('B')}
-                hitSlop={8}
-              >
-                <Text style={[styles.loopBtnText, { color: loopB !== null ? '#e53935' : colors.icon }]}>
-                  {loopB !== null ? `B·${formatMs(loopB)}` : 'B'}
-                </Text>
-              </TouchableOpacity>
-              {loopA !== null && loopB !== null && (
-                <TouchableOpacity onPress={() => clearLoop('both')} hitSlop={10} activeOpacity={0.7}>
-                  <Ionicons name="close-circle-outline" size={22} color={colors.icon} />
-                </TouchableOpacity>
-              )}
             </View>
 
+            {/* ── WAVEFORM ──────────────────────────────────────────────────── */}
+            <View
+              style={styles.waveformContainer}
+              onLayout={e => setWaveformContainerWidth(e.nativeEvent.layout.width)}
+            >
+              {/* Bars — programmatically scrolled, user scroll disabled */}
+              <ScrollView
+                ref={waveformScrollRef}
+                horizontal
+                scrollEnabled={false}
+                showsHorizontalScrollIndicator={false}
+                style={StyleSheet.absoluteFill}
+                contentContainerStyle={{ paddingHorizontal: waveformContainerWidth / 2 }}
+              >
+                <View style={styles.waveformInner}>
+                  {waveformBars.map((h, i) => {
+                    const played = durationMs > 0 && (positionMs_live / durationMs) * WAVEFORM_BARS > i;
+                    return (
+                      <View
+                        key={i}
+                        style={[styles.waveBar, {
+                          height: h,
+                          backgroundColor: played ? colors.text : colors.icon + '44',
+                        }]}
+                      />
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Fixed centre playhead */}
+              <View style={styles.wavePlayhead} pointerEvents="none" />
+
+              {/* Bookmark markers */}
+              {durationMs > 0 && bookmarks.map((bm, idx) => {
+                const x = (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W
+                        - Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2)
+                        + waveformContainerWidth / 2 - (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W
+                        + (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W
+                        - Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
+                // Simplify: markerX = barXInContent - scrollOffset, displayed within container
+                const scrollOff = Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
+                const barX = (bm.position_ms / durationMs) * WAVEFORM_TOTAL_W + waveformContainerWidth / 2;
+                const screenX = barX - scrollOff;
+                if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
+                return (
+                  <TouchableOpacity
+                    key={bm.id}
+                    style={[styles.waveMarker, { left: screenX }]}
+                    onPress={() => onSeekComplete(bm.position_ms)}
+                    onLongPress={() => Alert.alert(bm.label, undefined, [
+                      { text: S.cancel, style: 'cancel' },
+                      { text: 'Byt namn', onPress: () => { setRenameLabel(bm.label); setRenamingBookmark(bm); } },
+                      { text: 'Sätt som A', onPress: () => setLoop('A', bm.position_ms) },
+                      { text: 'Sätt som B', onPress: () => setLoop('B', bm.position_ms) },
+                      { text: S.delete, style: 'destructive', onPress: () => handleDeleteBookmark(bm.id) },
+                    ])}
+                    hitSlop={10}
+                  >
+                    <Text style={[styles.waveMarkerLabel, { color: colors.tint }]}>{idx + 1}</Text>
+                    <View style={[styles.waveMarkerTick, { backgroundColor: colors.tint }]} />
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* A/B markers */}
+              {durationMs > 0 && [
+                { pos: loopA, label: 'A', color: '#00A878', onLp: () => clearLoop('A') },
+                { pos: loopB, label: 'B', color: '#e53935', onLp: () => clearLoop('B') },
+              ].map(({ pos, label, color, onLp }) => {
+                if (pos === null) return null;
+                const scrollOff = Math.max(0, (positionMs_live / durationMs) * WAVEFORM_TOTAL_W - waveformContainerWidth / 2);
+                const screenX = (pos / durationMs) * WAVEFORM_TOTAL_W + waveformContainerWidth / 2 - scrollOff;
+                if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    style={[styles.waveMarker, { left: screenX }]}
+                    onPress={() => onSeekComplete(pos)}
+                    onLongPress={onLp}
+                    hitSlop={10}
+                  >
+                    <Text style={[styles.waveMarkerLabel, { color }]}>{label}</Text>
+                    <View style={[styles.waveMarkerTick, { backgroundColor: color }]} />
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Invisible slider overlay for touch-to-seek */}
+              <Slider
+                style={[StyleSheet.absoluteFill, { opacity: 0 }]}
+                minimumValue={0}
+                maximumValue={Math.max(durationMs, 1)}
+                value={positionMs}
+                onSlidingStart={onSeekStart}
+                onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
+                onSlidingComplete={onSeekComplete}
+              />
+            </View>
+
+            {/* ── BELOW WAVEFORM: A/B loop + Speed ────────────────────────── */}
+            <View style={styles.belowWaveRow}>
+              {/* A/B compound button */}
+              <TouchableOpacity
+                style={[styles.belowBtn, {
+                  borderColor: (loopA !== null || loopB !== null) ? colors.tint : colors.icon + '33',
+                  backgroundColor: (loopA !== null && loopB !== null) ? colors.tint + '14' : 'transparent',
+                }]}
+                onPress={() => {
+                  if (loopA === null) setLoop('A', positionMs_live);
+                  else if (loopB === null) setLoop('B', positionMs_live);
+                  else clearLoop('both');
+                }}
+                onLongPress={() => clearLoop('both')}
+                hitSlop={8}
+              >
+                <View style={styles.abIconWrap}>
+                  <Ionicons name="repeat" size={22} color={(loopA !== null || loopB !== null) ? colors.tint : colors.icon} />
+                  <Text style={[styles.abOverlay, { color: (loopA !== null || loopB !== null) ? colors.tint : colors.icon }]}>AB</Text>
+                </View>
+                <Text style={[styles.belowBtnLabel, { color: (loopA !== null || loopB !== null) ? colors.tint : colors.icon }]}>
+                  {loopA !== null && loopB !== null
+                    ? `${formatMs(loopA)}–${formatMs(loopB)}`
+                    : loopA !== null ? `A ${formatMs(loopA)}`
+                    : 'A/B-loop'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Speed button */}
+              <TouchableOpacity
+                style={[styles.belowBtn, {
+                  borderColor: playbackRate !== 1.0 ? colors.tint : colors.icon + '33',
+                }]}
+                onPress={() => setShowSpeedPanel(v => !v)}
+                hitSlop={8}
+              >
+                <Text style={[styles.belowBtnValue, { color: playbackRate !== 1.0 ? colors.tint : colors.text }]}>
+                  ×{(Math.round(playbackRate * 100) / 100).toFixed(2).replace(/\.?0+$/, '')}
+                </Text>
+                <Text style={[styles.belowBtnLabel, { color: colors.icon }]}>Hastighet</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Speed panel (expandable) */}
             {showSpeedPanel && (
               <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
                 <View style={styles.speedPresets}>
                   {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(r => (
                     <TouchableOpacity
                       key={r}
-                      style={[
-                        styles.speedPreset,
-                        { borderColor: colors.icon + '44' },
-                        playbackRate === r && { backgroundColor: colors.tint + '22', borderColor: colors.tint },
-                      ]}
+                      style={[styles.speedPreset, { borderColor: colors.icon + '44' },
+                        playbackRate === r && { backgroundColor: colors.tint + '22', borderColor: colors.tint }]}
                       onPress={() => applyRate(r)}
                     >
                       <Text style={[styles.speedPresetText, { color: playbackRate === r ? colors.tint : colors.text }]}>
@@ -757,6 +813,25 @@ export default function DetailScreen() {
                 </View>
               </View>
             )}
+
+            {/* ── TRANSPORT: skip-5 · play/pause · skip+5 ──────────────────── */}
+            <View style={styles.transportRow}>
+              <TouchableOpacity
+                onPress={() => soundRef.current?.setPositionAsync(Math.max(0, positionMs - 5000)).catch(() => {})}
+                hitSlop={12} activeOpacity={0.6}
+              >
+                <MaterialIcons name="replay-5" size={36} color={colors.icon} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={togglePlay} activeOpacity={0.7}>
+                <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={72} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => soundRef.current?.setPositionAsync(Math.min(durationMs, positionMs + 5000)).catch(() => {})}
+                hitSlop={12} activeOpacity={0.6}
+              >
+                <MaterialIcons name="forward-5" size={36} color={colors.icon} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── Metadata display ───────────────────────────────────────────── */}
@@ -1003,6 +1078,43 @@ export default function DetailScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Bookmark list modal */}
+      <Modal visible={showBookmarkList} transparent animationType="slide" onRequestClose={() => setShowBookmarkList(false)}>
+        <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} onPress={() => setShowBookmarkList(false)}>
+          <TouchableOpacity
+            style={[styles.bookmarkSheet, { backgroundColor: colors.background, paddingBottom: 16 + insets.bottom }]}
+            activeOpacity={1} onPress={() => {}}
+          >
+            <Text style={[styles.bookmarkSheetTitle, { color: colors.icon, borderBottomColor: colors.icon + '33' }]}>
+              Bokmärken
+            </Text>
+            {bookmarks.length === 0 ? (
+              <Text style={[styles.bookmarkEmpty, { color: colors.icon }]}>Inga bokmärken ännu</Text>
+            ) : (
+              bookmarks.map((bm, idx) => (
+                <TouchableOpacity
+                  key={bm.id}
+                  style={[styles.bookmarkRow, { borderBottomColor: colors.icon + '22' }]}
+                  onPress={() => { setShowBookmarkList(false); onSeekComplete(bm.position_ms); }}
+                  onLongPress={() => {
+                    setShowBookmarkList(false);
+                    Alert.alert(bm.label, undefined, [
+                      { text: S.cancel, style: 'cancel' },
+                      { text: 'Byt namn', onPress: () => { setRenameLabel(bm.label); setRenamingBookmark(bm); } },
+                      { text: S.delete, style: 'destructive', onPress: () => handleDeleteBookmark(bm.id) },
+                    ]);
+                  }}
+                >
+                  <Text style={[styles.bookmarkRowNum, { color: colors.tint }]}>{idx + 1}</Text>
+                  <Text style={[styles.bookmarkRowLabel, { color: colors.text }]}>{bm.label}</Text>
+                  <Text style={[styles.bookmarkRowTime, { color: colors.icon }]}>{formatMs(bm.position_ms)}</Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Image preview modal */}
       <Modal visible={previewImage !== null} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
         <TouchableOpacity style={styles.previewOverlay} activeOpacity={1} onPress={() => setPreviewImage(null)}>
@@ -1061,35 +1173,123 @@ const styles = StyleSheet.create({
   // Player
   player: {
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     marginBottom: 8,
+    gap: 8,
   },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 2,
-  },
-  timeText: { fontSize: 13, fontVariant: ['tabular-nums'] },
   seekTime: {
-    fontSize: 28,
+    fontSize: 48,
     fontWeight: '200',
     fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    marginBottom: 2,
+    letterSpacing: 1,
   },
-  slider: { width: '100%', height: 52 },
-  controls: {
+  timeText: { fontSize: 13, fontVariant: ['tabular-nums'] },
+
+  // Above waveform
+  aboveWaveRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+
+  // Waveform
+  waveformContainer: {
+    width: '100%',
+    height: WAVEFORM_H,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  waveformInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    height: WAVEFORM_H,
+    gap: BAR_GAP,
+  },
+  waveBar: { width: BAR_W, borderRadius: 2 },
+  wavePlayhead: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    left: '50%',
+    marginLeft: -1,
+    backgroundColor: '#e53935',
+  },
+  waveMarker: {
+    position: 'absolute',
+    bottom: 0,
+    alignItems: 'center',
+    transform: [{ translateX: -5 }],
+  },
+  waveMarkerLabel: { fontSize: 9, fontWeight: '800', lineHeight: 11 },
+  waveMarkerTick: { width: 2, height: 14, borderRadius: 1 },
+
+  // Below waveform
+  belowWaveRow: {
+    flexDirection: 'row',
     width: '100%',
-    marginTop: 4,
+    gap: 10,
+  },
+  belowBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 3,
+  },
+  belowBtnValue: {
+    fontSize: 20,
+    fontWeight: '300',
+    fontVariant: ['tabular-nums'],
+  },
+  belowBtnLabel: { fontSize: 11, fontWeight: '500' },
+  abIconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center', width: 24, height: 24 },
+  abOverlay: { position: 'absolute', fontSize: 6, fontWeight: '800', letterSpacing: 0.5 },
+
+  // Transport row
+  transportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    width: '100%',
   },
   playBtn: {},
+
+  // Bookmark list sheet
+  overlayDismiss: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  bookmarkSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 8,
+  },
+  bookmarkSheetTitle: {
+    fontSize: 13,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  bookmarkEmpty: { textAlign: 'center', paddingVertical: 24, fontSize: 15 },
+  bookmarkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  bookmarkRowNum: { fontSize: 14, fontWeight: '700', width: 20, textAlign: 'center' },
+  bookmarkRowLabel: { flex: 1, fontSize: 15 },
+  bookmarkRowTime: { fontSize: 13, fontVariant: ['tabular-nums'] },
   tagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1171,54 +1371,6 @@ const styles = StyleSheet.create({
   actionBtnPrimaryText: { color: 'white', fontSize: 16, fontWeight: '600' },
   actionBtnSecondaryText: { fontSize: 16, fontWeight: '500' },
 
-  markerBar: {
-    width: '100%',
-    height: 24,
-    position: 'relative',
-    marginBottom: 2,
-  },
-  markerContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    bottom: 0,
-  },
-  markerLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    lineHeight: 12,
-  },
-  markerTick: {
-    width: 2,
-    height: 10,
-    borderRadius: 1,
-  },
-
-  loopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  loopBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-
-  speedBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  speedBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
   speedPanel: {
     marginTop: 4,
     paddingTop: 12,
