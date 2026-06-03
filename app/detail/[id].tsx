@@ -16,6 +16,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -127,6 +128,10 @@ export default function DetailScreen() {
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const playbackRateRef = useRef(1.0);
   const [showSpeedPanel, setShowSpeedPanel] = useState(false);
+
+  // Ref kept in sync with durationMs so PanResponder callbacks can read it without stale closures
+  const durationMsRef = useRef(0);
+  useEffect(() => { durationMsRef.current = durationMs; }, [durationMs]);
 
   const waveformBars = useMemo(
     () => generateWaveformBars(recording?.id ?? 1),
@@ -306,13 +311,46 @@ export default function DetailScreen() {
     });
   }
 
+  // PanResponders for dragging A/B loop points along the waveform
+  const abDragStartMs = useRef(0);
+  const loopAPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => loopARef.current !== null,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { abDragStartMs.current = loopARef.current ?? 0; },
+    onPanResponderMove: (_, g) => {
+      const dur = durationMsRef.current;
+      if (dur === 0) return;
+      const newPos = Math.max(0, Math.min(dur, abDragStartMs.current + g.dx * dur / WAVEFORM_TOTAL_W));
+      loopARef.current = newPos;
+      setLoopA(newPos);
+    },
+    onPanResponderRelease: () => {},
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  const loopBPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => loopBRef.current !== null,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { abDragStartMs.current = loopBRef.current ?? 0; },
+    onPanResponderMove: (_, g) => {
+      const dur = durationMsRef.current;
+      if (dur === 0) return;
+      const newPos = Math.max(0, Math.min(dur, abDragStartMs.current + g.dx * dur / WAVEFORM_TOTAL_W));
+      loopBRef.current = newPos;
+      setLoopB(newPos);
+    },
+    onPanResponderRelease: () => {},
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
   // Scroll waveform so playhead stays centered
   useEffect(() => {
     if (!waveformScrollRef.current || durationMs === 0 || waveformContainerWidth === 0) return;
-    const x = (positionMs_live / durationMs) * WAVEFORM_TOTAL_W;
+    const pos = seekPositionMs ?? positionMs_live;
+    const x = (pos / durationMs) * WAVEFORM_TOTAL_W;
     waveformScrollRef.current.scrollTo({ x, animated: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionMs_live, durationMs, waveformContainerWidth]);
+  }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth]);
 
   function reloadBookmarks() {
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -677,15 +715,26 @@ export default function DetailScreen() {
               {/* Fixed centre playhead */}
               <View style={styles.wavePlayhead} pointerEvents="none" />
 
-              {/* Bookmark markers */}
+              {/* Invisible slider — rendered before markers so markers have higher z-order */}
+              <Slider
+                style={[StyleSheet.absoluteFill, { opacity: 0, zIndex: 1 }]}
+                minimumValue={0}
+                maximumValue={Math.max(durationMs, 1)}
+                value={positionMs}
+                onSlidingStart={onSeekStart}
+                onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
+                onSlidingComplete={onSeekComplete}
+              />
+
+              {/* Bookmark markers — zIndex 2 so long-press is not blocked by slider */}
               {durationMs > 0 && bookmarks.map((bm, idx) => {
                 const screenX = waveformContainerWidth / 2
-                  + (bm.position_ms - positionMs_live) / durationMs * WAVEFORM_TOTAL_W;
+                  + (bm.position_ms - positionMs) / durationMs * WAVEFORM_TOTAL_W;
                 if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
                 return (
                   <TouchableOpacity
                     key={bm.id}
-                    style={[styles.waveMarker, { left: screenX }]}
+                    style={[styles.waveMarker, { left: screenX - 10, zIndex: 2 }]}
                     onPress={() => onSeekComplete(bm.position_ms)}
                     onLongPress={() => Alert.alert(bm.label, undefined, [
                       { text: S.cancel, style: 'cancel' },
@@ -694,7 +743,7 @@ export default function DetailScreen() {
                       { text: 'Sätt som B', onPress: () => setLoop('B', bm.position_ms) },
                       { text: S.delete, style: 'destructive', onPress: () => handleDeleteBookmark(bm.id) },
                     ])}
-                    hitSlop={10}
+                    hitSlop={8}
                   >
                     <Text style={[styles.waveMarkerLabel, { color: colors.tint }]}>{idx + 1}</Text>
                     <View style={[styles.waveMarkerTick, { backgroundColor: colors.tint }]} />
@@ -702,43 +751,36 @@ export default function DetailScreen() {
                 );
               })}
 
-              {/* A/B markers */}
+              {/* A/B markers — full-height, draggable, zIndex 3 */}
               {durationMs > 0 && [
-                { pos: loopA, label: 'A', color: '#00A878', key: 'A' as const },
-                { pos: loopB, label: 'B', color: '#e53935', key: 'B' as const },
-              ].map(({ pos, label, color, key }) => {
+                { pos: loopA, label: 'A', color: '#00A878', panResponder: loopAPanResponder, loopKey: 'A' as const },
+                { pos: loopB, label: 'B', color: '#e53935', panResponder: loopBPanResponder, loopKey: 'B' as const },
+              ].map(({ pos, label, color, panResponder, loopKey }) => {
                 if (pos === null) return null;
                 const screenX = waveformContainerWidth / 2
-                  + (pos - positionMs_live) / durationMs * WAVEFORM_TOTAL_W;
-                if (screenX < -16 || screenX > waveformContainerWidth + 16) return null;
+                  + (pos - positionMs) / durationMs * WAVEFORM_TOTAL_W;
+                if (screenX < -20 || screenX > waveformContainerWidth + 20) return null;
                 return (
-                  <TouchableOpacity
+                  <View
                     key={label}
-                    style={[styles.waveMarker, { left: screenX }]}
-                    onPress={() => onSeekComplete(pos)}
-                    onLongPress={() => Alert.alert(`${label}-punkt`, undefined, [
-                      { text: S.cancel, style: 'cancel' },
-                      { text: 'Flytta hit', onPress: () => setLoop(key, positionMs_live) },
-                      { text: 'Ta bort', style: 'destructive', onPress: () => clearLoop(key) },
-                    ])}
-                    hitSlop={10}
+                    style={[styles.abMarkerView, { left: screenX - 12, zIndex: 3 }]}
+                    {...panResponder.panHandlers}
                   >
-                    <Text style={[styles.waveMarkerLabel, { color }]}>{label}</Text>
-                    <View style={[styles.waveMarkerTick, { backgroundColor: color }]} />
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onLongPress={() => Alert.alert(`${label}-punkt`, undefined, [
+                        { text: S.cancel, style: 'cancel' },
+                        { text: 'Flytta hit', onPress: () => setLoop(loopKey, positionMs_live) },
+                        { text: 'Ta bort', style: 'destructive', onPress: () => clearLoop(loopKey) },
+                      ])}
+                      activeOpacity={0.7}
+                      style={{ flex: 1, alignItems: 'center' }}
+                    >
+                      <Text style={[styles.abMarkerLabel, { color }]}>{label}</Text>
+                      <View style={[styles.abMarkerLine, { backgroundColor: color }]} />
+                    </TouchableOpacity>
+                  </View>
                 );
               })}
-
-              {/* Invisible slider overlay for touch-to-seek */}
-              <Slider
-                style={[StyleSheet.absoluteFill, { opacity: 0 }]}
-                minimumValue={0}
-                maximumValue={Math.max(durationMs, 1)}
-                value={positionMs}
-                onSlidingStart={onSeekStart}
-                onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
-                onSlidingComplete={onSeekComplete}
-              />
             </View>
 
             {/* ── CONTROLS ROW: A/B · skip-5 · play · skip+5 · speed ─────── */}
@@ -1250,14 +1292,26 @@ const styles = StyleSheet.create({
     marginLeft: -1,
     backgroundColor: '#e53935',
   },
+  // Bookmark markers
   waveMarker: {
     position: 'absolute',
+    top: 0,
     bottom: 0,
+    width: 20,
     alignItems: 'center',
-    transform: [{ translateX: -5 }],
   },
   waveMarkerLabel: { fontSize: 9, fontWeight: '800', lineHeight: 11 },
-  waveMarkerTick: { width: 2, height: 14, borderRadius: 1 },
+  waveMarkerTick: { width: 2, flex: 1, borderRadius: 1 },
+
+  // A/B markers — full-height, draggable
+  abMarkerView: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 24,
+  },
+  abMarkerLabel: { fontSize: 11, fontWeight: '800', lineHeight: 14 },
+  abMarkerLine: { width: 2, flex: 1, borderRadius: 1 },
 
   // Combined controls row: [A/B] [◁5] [▶️] [5▷] [×1.0]
   controlsRow: {
