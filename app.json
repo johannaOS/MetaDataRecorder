@@ -45,6 +45,8 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-ffmpeg-kit",
+      "./plugins/withFfmpegKit",
       "expo-router",
       "expo-task-manager",
       "./plugins/withForegroundMicrophoneService",
