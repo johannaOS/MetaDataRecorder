@@ -37,6 +37,7 @@ import { useFieldConfig } from '@/hooks/useFieldConfig';
 import { saveAudioFile } from 'save-to-music';
 import { generateSafeFilename } from '@/lib/filename';
 import { copyAttachmentToStorage, copyToPermanentStorage } from '@/lib/saveRecording';
+import { transposeRecording, semitoneLabel, TRANSPOSE_RANGE } from '@/lib/audioTranspose';
 import { S } from '@/lib/strings';
 
 const SAVE_COLOR = '#00A878';
@@ -129,6 +130,12 @@ export default function DetailScreen() {
   const playbackRateRef = useRef(1.0);
   const [showSpeedPanel, setShowSpeedPanel] = useState(false);
 
+  // Transposition
+  const [transposeSteps, setTransposeSteps] = useState(0);
+  const [showTransposePanel, setShowTransposePanel] = useState(false);
+  const [transposeProcessing, setTransposeProcessing] = useState(false);
+  const [transposePct, setTransposePct] = useState(0);
+
   // Ref kept in sync with durationMs so PanResponder callbacks can read it without stale closures
   const durationMsRef = useRef(0);
   useEffect(() => { durationMsRef.current = durationMs; }, [durationMs]);
@@ -188,6 +195,7 @@ export default function DetailScreen() {
     setDidJustFinish(false);
     playbackRateRef.current = 1.0;
     setPlaybackRate(1.0);
+    setTransposeSteps(0);
     loopARef.current = null; loopBRef.current = null;
     setLoopA(null); setLoopB(null);
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -351,6 +359,28 @@ export default function DetailScreen() {
     waveformScrollRef.current.scrollTo({ x, animated: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth]);
+
+  async function applyTranspose(semitones: number) {
+    if (!recording) return;
+    const s = Math.max(TRANSPOSE_RANGE.min, Math.min(TRANSPOSE_RANGE.max, semitones));
+    setTransposeSteps(s);
+    if (s === 0) {
+      await loadSoundUri(recording.filePath);
+      return;
+    }
+    setTransposeProcessing(true);
+    setTransposePct(0);
+    try {
+      const processed = await transposeRecording(recording.id, recording.filePath, s, setTransposePct);
+      await loadSoundUri(processed);
+    } catch (e) {
+      Sentry.captureException(e, { tags: { flow: 'applyTranspose' } });
+      Alert.alert('Transponering misslyckades', String(e));
+      setTransposeSteps(0);
+    } finally {
+      setTransposeProcessing(false);
+    }
+  }
 
   function reloadBookmarks() {
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -839,6 +869,63 @@ export default function DetailScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Transpose button row */}
+            {!cutMode && (
+              <TouchableOpacity
+                style={[styles.transposeBtn, { borderColor: transposeSteps !== 0 ? colors.tint : colors.icon + '33' }]}
+                onPress={() => setShowTransposePanel(v => !v)}
+                disabled={transposeProcessing}
+                hitSlop={8}
+              >
+                <Ionicons name="musical-notes-outline" size={16} color={transposeSteps !== 0 ? colors.tint : colors.icon} />
+                <Text style={[styles.transposeBtnText, { color: transposeSteps !== 0 ? colors.tint : colors.icon }]}>
+                  {transposeProcessing ? `Transponerar… ${transposePct > 0 ? `${Math.round(transposePct)}%` : ''}` : transposeSteps !== 0 ? `Ton ${semitoneLabel(transposeSteps)}` : 'Transponera'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Transpose panel */}
+            {showTransposePanel && !cutMode && (
+              <View style={[styles.speedPanel, { borderTopColor: colors.icon + '22' }]}>
+                <View style={styles.speedPresets}>
+                  {[-7, -5, -3, 0, 3, 5, 7].map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.speedPreset, { borderColor: colors.icon + '44' },
+                        transposeSteps === s && { backgroundColor: colors.tint + '22', borderColor: colors.tint }]}
+                      onPress={() => applyTranspose(s)}
+                      disabled={transposeProcessing}
+                    >
+                      <Text style={[styles.speedPresetText, { color: transposeSteps === s ? colors.tint : colors.text }]}>
+                        {semitoneLabel(s)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.speedSliderRow}>
+                  <TouchableOpacity
+                    style={[styles.speedStepBtn, { borderColor: colors.icon + '44', opacity: transposeSteps <= TRANSPOSE_RANGE.min || transposeProcessing ? 0.3 : 1 }]}
+                    onPress={() => applyTranspose(transposeSteps - 1)}
+                    disabled={transposeSteps <= TRANSPOSE_RANGE.min || transposeProcessing}
+                  >
+                    <Text style={[styles.speedStepText, { color: colors.text }]}>−</Text>
+                  </TouchableOpacity>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={[styles.speedPresetText, { color: colors.text }]}>
+                      {semitoneLabel(transposeSteps)} halvtoner
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.speedStepBtn, { borderColor: colors.icon + '44', opacity: transposeSteps >= TRANSPOSE_RANGE.max || transposeProcessing ? 0.3 : 1 }]}
+                    onPress={() => applyTranspose(transposeSteps + 1)}
+                    disabled={transposeSteps >= TRANSPOSE_RANGE.max || transposeProcessing}
+                  >
+                    <Text style={[styles.speedStepText, { color: colors.text }]}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Speed panel (expandable below controls row) */}
             {showSpeedPanel && (
@@ -1348,6 +1435,17 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 14,
   },
+  transposeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  transposeBtnText: { fontSize: 13, fontWeight: '600' },
 
   // Bookmark list sheet
   overlayDismiss: {
