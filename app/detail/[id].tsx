@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import {
   Alert,
   Animated,
@@ -144,6 +145,34 @@ export default function DetailScreen() {
   const selEndRef = useRef(0);
   const [isCutProcessing, setIsCutProcessing] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+
+  // Cut mode zoom — driven by pinch gesture
+  const [cutZoom, setCutZoom] = useState(1);
+  const cutZoomRef   = useRef(1);
+  const cutScrollX   = useRef(0); // current scroll offset in pixels
+  const baseZoom     = useRef(1); // zoom at pinch start
+  const baseScrollX  = useRef(0); // scroll at pinch start
+
+  const pinchGesture = useMemo(() => Gesture.Pinch()
+    .onBegin(() => {
+      baseZoom.current    = cutZoomRef.current;
+      baseScrollX.current = cutScrollX.current;
+    })
+    .onUpdate((e) => {
+      const cw = waveformContainerWidthRef.current;
+      if (cw === 0) return;
+      const newZoom = Math.max(1, Math.min(8, baseZoom.current * e.scale));
+      const newScrollX = Math.max(0, Math.min(
+        cw * (newZoom - 1),
+        (baseScrollX.current + e.focalX) * (newZoom / baseZoom.current) - e.focalX,
+      ));
+      cutZoomRef.current = newZoom;
+      cutScrollX.current = newScrollX;
+      setCutZoom(newZoom);
+    })
+    .runOnJS(true),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  []);
 
   // Playback waveform total width (constant in playback mode)
   const waveformTotalW = WAVEFORM_BARS * (BAR_W + BAR_GAP);
@@ -367,10 +396,9 @@ export default function DetailScreen() {
   // so we map screen pixels using containerWidth not the scrolling waveformTotalW.
   const cutPxToMs = (dx: number): number => {
     const dur = durationMsRef.current;
-    const w = cutModeRef.current
-      ? (waveformContainerWidthRef.current || waveformTotalWRef.current)
-      : waveformTotalWRef.current;
-    return dx * dur / w;
+    if (!cutModeRef.current) return dx * dur / waveformTotalWRef.current;
+    const cw = waveformContainerWidthRef.current || waveformTotalWRef.current;
+    return dx * dur / (cw * cutZoomRef.current);
   };
 
   const selStartPanResponder = useMemo(() => PanResponder.create({
@@ -520,6 +548,7 @@ export default function DetailScreen() {
   function exitCutMode() {
     setCutMode(false);
     setIsCutProcessing(false);
+    setCutZoom(1); cutZoomRef.current = 1; cutScrollX.current = 0;
   }
 
   async function executeCut(keepSelected: boolean) {
@@ -814,71 +843,82 @@ export default function DetailScreen() {
               onLayout={e => { const w = e.nativeEvent.layout.width; setWaveformContainerWidth(w); waveformContainerWidthRef.current = w; }}
             >
               {cutMode ? (
-                /* ── CUT MODE: static full-file waveform ────────────────────── */
-                <>
-                  {/* Bars — proportional, fills full width */}
-                  <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', alignItems: 'center' }]}>
-                    {waveformBars.map((h, i) => {
-                      const barMs = (i / WAVEFORM_BARS) * durationMs;
-                      const inSel = barMs >= selStart && barMs <= selEnd;
-                      return (
-                        <View key={i} style={{
-                          width: waveformContainerWidth / WAVEFORM_BARS,
-                          height: h,
-                          backgroundColor: inSel ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
-                        }} />
-                      );
-                    })}
-                  </View>
-
-                  {/* Playhead */}
-                  {durationMs > 0 && (
+                /* ── CUT MODE: zoomable full-file waveform (pinch to zoom) ─── */
+                <GestureDetector gesture={pinchGesture}>
+                  <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                    {/* Bars — shifted left by cutScrollX, width scaled by cutZoom */}
                     <View pointerEvents="none" style={{
                       position: 'absolute', top: 0, bottom: 0,
-                      left: (positionMs / durationMs) * waveformContainerWidth - 1,
-                      width: 2, backgroundColor: '#e53935',
-                    }} />
-                  )}
-
-                  {/* L handle */}
-                  {durationMs > 0 && (
-                    <View
-                      {...selStartPanResponder.panHandlers}
-                      style={[styles.cutHandleView, { left: (selStart / durationMs) * waveformContainerWidth - 12, zIndex: 4 }]}
-                    >
-                      <View style={styles.cutHandleTimestampPill}>
-                        <Text style={styles.cutHandleTimestampText}>{formatMs(selStart)}</Text>
-                      </View>
-                      <View style={styles.cutHandleLine} />
-                      <View style={styles.cutHandleTriangle} />
+                      left: -cutScrollX.current,
+                      width: waveformContainerWidth * cutZoom,
+                      flexDirection: 'row', alignItems: 'center',
+                    }}>
+                      {waveformBars.map((h, i) => {
+                        const barMs = (i / WAVEFORM_BARS) * durationMs;
+                        const inSel = barMs >= selStart && barMs <= selEnd;
+                        return (
+                          <View key={i} style={{
+                            width: waveformContainerWidth * cutZoom / WAVEFORM_BARS,
+                            height: h,
+                            backgroundColor: inSel ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
+                          }} />
+                        );
+                      })}
                     </View>
-                  )}
 
-                  {/* R handle */}
-                  {durationMs > 0 && (
-                    <View
-                      {...selEndPanResponder.panHandlers}
-                      style={[styles.cutHandleView, { left: (selEnd / durationMs) * waveformContainerWidth - 12, zIndex: 4 }]}
-                    >
-                      <View style={styles.cutHandleTimestampPill}>
-                        <Text style={styles.cutHandleTimestampText}>{formatMs(selEnd)}</Text>
+                    {/* Playhead */}
+                    {durationMs > 0 && (
+                      <View pointerEvents="none" style={{
+                        position: 'absolute', top: 0, bottom: 0, zIndex: 2,
+                        left: (positionMs / durationMs) * waveformContainerWidth * cutZoom - cutScrollX.current - 1,
+                        width: 2, backgroundColor: '#e53935',
+                      }} />
+                    )}
+
+                    {/* L handle */}
+                    {durationMs > 0 && (
+                      <View
+                        {...selStartPanResponder.panHandlers}
+                        style={[styles.cutHandleView, {
+                          left: (selStart / durationMs) * waveformContainerWidth * cutZoom - cutScrollX.current - 12,
+                          zIndex: 4,
+                        }]}
+                      >
+                        <View style={styles.cutHandleTimestampPill}>
+                          <Text style={styles.cutHandleTimestampText}>{formatMs(selStart)}</Text>
+                        </View>
+                        <View style={styles.cutHandleLine} />
+                        <View style={styles.cutHandleTriangle} />
                       </View>
-                      <View style={styles.cutHandleLine} />
-                      <View style={styles.cutHandleTriangle} />
-                    </View>
-                  )}
+                    )}
 
-                  {/* Invisible slider for seek */}
-                  <Slider
-                    style={[StyleSheet.absoluteFill, { opacity: 0, zIndex: 1 }]}
-                    minimumValue={0}
-                    maximumValue={Math.max(durationMs, 1)}
-                    value={positionMs}
-                    onSlidingStart={onSeekStart}
-                    onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
-                    onSlidingComplete={onSeekComplete}
-                  />
-                </>
+                    {/* R handle */}
+                    {durationMs > 0 && (
+                      <View
+                        {...selEndPanResponder.panHandlers}
+                        style={[styles.cutHandleView, {
+                          left: (selEnd / durationMs) * waveformContainerWidth * cutZoom - cutScrollX.current - 12,
+                          zIndex: 4,
+                        }]}
+                      >
+                        <View style={styles.cutHandleTimestampPill}>
+                          <Text style={styles.cutHandleTimestampText}>{formatMs(selEnd)}</Text>
+                        </View>
+                        <View style={styles.cutHandleLine} />
+                        <View style={styles.cutHandleTriangle} />
+                      </View>
+                    )}
+
+                    {/* Zoom indicator — only shown when zoomed */}
+                    {cutZoom > 1 && (
+                      <View pointerEvents="none" style={{ position: 'absolute', top: 4, right: 6, zIndex: 5 }}>
+                        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700' }}>
+                          ×{cutZoom.toFixed(cutZoom % 1 === 0 ? 0 : 1)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </GestureDetector>
               ) : (
                 /* ── PLAYBACK MODE: scrolling waveform ──────────────────────── */
                 <>
