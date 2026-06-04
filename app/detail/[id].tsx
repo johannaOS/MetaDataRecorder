@@ -136,17 +136,19 @@ export default function DetailScreen() {
 
   // ── Cut mode ──────────────────────────────────────────────────────────────
   const [cutMode, setCutMode] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const cutModeRef = useRef(false);
+  useEffect(() => { cutModeRef.current = cutMode; }, [cutMode]);
   const [selStart, setSelStart] = useState(0);
   const [selEnd, setSelEnd] = useState(0);
   const selStartRef = useRef(0);
   const selEndRef = useRef(0);
   const [isCutProcessing, setIsCutProcessing] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
 
-  // Waveform total width — scales with zoom in cut mode
-  const waveformTotalW = WAVEFORM_BARS * (BAR_W * (cutMode ? zoomLevel : 1) + BAR_GAP);
+  // Playback waveform total width (constant in playback mode)
+  const waveformTotalW = WAVEFORM_BARS * (BAR_W + BAR_GAP);
   const waveformTotalWRef = useRef(waveformTotalW);
-  useEffect(() => { waveformTotalWRef.current = waveformTotalW; }, [waveformTotalW]);
+  const waveformContainerWidthRef = useRef(0);
   useEffect(() => { selStartRef.current = selStart; }, [selStart]);
   useEffect(() => { selEndRef.current = selEnd; }, [selEnd]);
 
@@ -361,6 +363,16 @@ export default function DetailScreen() {
   }), []);
 
   // Selection handle PanResponders (cut mode)
+  // In cut mode the waveform fills the container (containerWidth = full file),
+  // so we map screen pixels using containerWidth not the scrolling waveformTotalW.
+  const cutPxToMs = (dx: number): number => {
+    const dur = durationMsRef.current;
+    const w = cutModeRef.current
+      ? (waveformContainerWidthRef.current || waveformTotalWRef.current)
+      : waveformTotalWRef.current;
+    return dx * dur / w;
+  };
+
   const selStartPanResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -368,7 +380,7 @@ export default function DetailScreen() {
     onPanResponderMove: (_, g) => {
       const dur = durationMsRef.current;
       if (dur === 0) return;
-      const newPos = Math.max(0, Math.min(selEndRef.current - 500, abDragStartMs.current + g.dx * dur / waveformTotalWRef.current));
+      const newPos = Math.max(0, Math.min(selEndRef.current - 500, abDragStartMs.current + cutPxToMs(g.dx)));
       selStartRef.current = newPos;
       setSelStart(newPos);
     },
@@ -383,7 +395,7 @@ export default function DetailScreen() {
     onPanResponderMove: (_, g) => {
       const dur = durationMsRef.current;
       if (dur === 0) return;
-      const newPos = Math.max(selStartRef.current + 500, Math.min(dur, abDragStartMs.current + g.dx * dur / waveformTotalWRef.current));
+      const newPos = Math.max(selStartRef.current + 500, Math.min(dur, abDragStartMs.current + cutPxToMs(g.dx)));
       selEndRef.current = newPos;
       setSelEnd(newPos);
     },
@@ -501,13 +513,12 @@ export default function DetailScreen() {
     const end   = durationMs * 0.75;
     setSelStart(start); selStartRef.current = start;
     setSelEnd(end);     selEndRef.current   = end;
-    setZoomLevel(1);
     setCutMode(true);
+    setShowHeaderMenu(false);
   }
 
   function exitCutMode() {
     setCutMode(false);
-    setZoomLevel(1);
     setIsCutProcessing(false);
   }
 
@@ -752,23 +763,13 @@ export default function DetailScreen() {
                 </TouchableOpacity>
               ) : (
                 <>
-                  {/* Save to Music folder — only shown for recordings still in app documents */}
                   {recording.filePath.startsWith('file://') && (
                     <TouchableOpacity onPress={handleSaveToPhone} style={styles.headerBtn} hitSlop={8} disabled={savingToPhone}>
                       <Ionicons name="save-outline" size={22} color={colors.tint} />
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={handleShare} style={styles.headerBtn} hitSlop={8}>
-                    <Ionicons name="share-outline" size={22} color={colors.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={enterCutMode} style={styles.headerBtn} hitSlop={8}>
-                    <Ionicons name="cut-outline" size={22} color={colors.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={startEditing} style={styles.headerBtn} hitSlop={8}>
-                    <Ionicons name="pencil-outline" size={22} color={colors.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleDelete} style={styles.headerBtn} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={22} color="#e53935" />
+                  <TouchableOpacity onPress={() => setShowHeaderMenu(true)} style={styles.headerBtn} hitSlop={8}>
+                    <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
                   </TouchableOpacity>
                 </>
               )}
@@ -792,30 +793,8 @@ export default function DetailScreen() {
             <Text style={[styles.seekTime, { color: colors.text }]}>{formatMs(positionMs)}</Text>
             <Text style={[styles.timeText, { color: colors.icon }]}>{formatMs(durationMs)}</Text>
 
-            {/* ── ABOVE WAVEFORM ──────────────────────────────────────────── */}
-            {cutMode ? (
-              // Cut mode: zoom controls
-              <View style={styles.aboveWaveRow}>
-                <TouchableOpacity
-                  hitSlop={12} activeOpacity={0.7}
-                  onPress={() => setZoomLevel(z => Math.max(1, z / 2))}
-                  style={{ opacity: zoomLevel <= 1 ? 0.3 : 1 }}
-                >
-                  <Ionicons name="remove-circle-outline" size={24} color={colors.icon} />
-                </TouchableOpacity>
-                <Text style={{ color: colors.icon, fontSize: 13, fontWeight: '600' }}>
-                  Zoom ×{zoomLevel}
-                </Text>
-                <TouchableOpacity
-                  hitSlop={12} activeOpacity={0.7}
-                  onPress={() => setZoomLevel(z => Math.min(8, z * 2))}
-                  style={{ opacity: zoomLevel >= 8 ? 0.3 : 1 }}
-                >
-                  <Ionicons name="add-circle-outline" size={24} color={colors.icon} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              // Normal mode: bookmark controls
+            {/* ── ABOVE WAVEFORM: bookmarks (hidden in cut mode) ───────────── */}
+            {!cutMode && (
               <View style={styles.aboveWaveRow}>
                 <TouchableOpacity onPress={() => setShowBookmarkList(true)} hitSlop={12} activeOpacity={0.7}>
                   <Ionicons name="bookmark" size={22} color={bookmarks.length > 0 ? colors.tint : colors.icon + '66'} />
@@ -832,60 +811,112 @@ export default function DetailScreen() {
             {/* ── WAVEFORM ──────────────────────────────────────────────────── */}
             <View
               style={styles.waveformContainer}
-              onLayout={e => setWaveformContainerWidth(e.nativeEvent.layout.width)}
+              onLayout={e => { const w = e.nativeEvent.layout.width; setWaveformContainerWidth(w); waveformContainerWidthRef.current = w; }}
             >
-              {/* Bars — programmatically scrolled, user scroll disabled */}
-              <ScrollView
-                ref={waveformScrollRef}
-                horizontal
-                scrollEnabled={false}
-                showsHorizontalScrollIndicator={false}
-                style={StyleSheet.absoluteFill}
-                contentContainerStyle={{ paddingHorizontal: waveformContainerWidth / 2 }}
-              >
-                <View style={styles.waveformInner}>
-                  {waveformBars.map((h, i) => {
-                    const played = durationMs > 0 && (positionMs_live / durationMs) * WAVEFORM_BARS > i;
-                    const barMs = (i / WAVEFORM_BARS) * durationMs;
-                    const inSelection = cutMode && barMs >= selStart && barMs <= selEnd;
-                    return (
-                      <View
-                        key={i}
-                        style={[styles.waveBar, {
-                          width: BAR_W * (cutMode ? zoomLevel : 1),
+              {cutMode ? (
+                /* ── CUT MODE: static full-file waveform ────────────────────── */
+                <>
+                  {/* Bars — proportional, fills full width */}
+                  <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', alignItems: 'center' }]}>
+                    {waveformBars.map((h, i) => {
+                      const barMs = (i / WAVEFORM_BARS) * durationMs;
+                      const inSel = barMs >= selStart && barMs <= selEnd;
+                      return (
+                        <View key={i} style={{
+                          width: waveformContainerWidth / WAVEFORM_BARS,
                           height: h,
-                          backgroundColor: inSelection
-                            ? colors.tint
-                            : played ? colors.text : colors.icon + '44',
-                        }]}
-                      />
-                    );
-                  })}
-                </View>
-              </ScrollView>
-
-              {/* Fixed centre playhead */}
-              <View style={styles.wavePlayhead} pointerEvents="none" />
-
-              {/* Cut mode: selection handles (zIndex 4, above A/B) */}
-              {cutMode && durationMs > 0 && [
-                { ms: selStart, pan: selStartPanResponder, side: 'L' },
-                { ms: selEnd,   pan: selEndPanResponder,   side: 'R' },
-              ].map(({ ms, pan, side }) => {
-                const screenX = waveformContainerWidth / 2
-                  + (ms - positionMs) / durationMs * waveformTotalW;
-                if (screenX < -20 || screenX > waveformContainerWidth + 20) return null;
-                return (
-                  <View
-                    key={side}
-                    style={[styles.selHandleView, { left: screenX - 12, zIndex: 4 }]}
-                    {...pan.panHandlers}
-                  >
-                    <Text style={[styles.selHandleLabel, { color: colors.tint }]}>{side}</Text>
-                    <View style={[styles.selHandleLine, { backgroundColor: colors.tint }]} />
+                          backgroundColor: inSel ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
+                        }} />
+                      );
+                    })}
                   </View>
-                );
-              })}
+
+                  {/* Playhead */}
+                  {durationMs > 0 && (
+                    <View pointerEvents="none" style={{
+                      position: 'absolute', top: 0, bottom: 0,
+                      left: (positionMs / durationMs) * waveformContainerWidth - 1,
+                      width: 2, backgroundColor: '#e53935',
+                    }} />
+                  )}
+
+                  {/* L handle */}
+                  {durationMs > 0 && (
+                    <View
+                      {...selStartPanResponder.panHandlers}
+                      style={[styles.cutHandleView, { left: (selStart / durationMs) * waveformContainerWidth - 12, zIndex: 4 }]}
+                    >
+                      <View style={styles.cutHandleTimestampPill}>
+                        <Text style={styles.cutHandleTimestampText}>{formatMs(selStart)}</Text>
+                      </View>
+                      <View style={styles.cutHandleLine} />
+                      <View style={styles.cutHandleTriangle} />
+                    </View>
+                  )}
+
+                  {/* R handle */}
+                  {durationMs > 0 && (
+                    <View
+                      {...selEndPanResponder.panHandlers}
+                      style={[styles.cutHandleView, { left: (selEnd / durationMs) * waveformContainerWidth - 12, zIndex: 4 }]}
+                    >
+                      <View style={styles.cutHandleTimestampPill}>
+                        <Text style={styles.cutHandleTimestampText}>{formatMs(selEnd)}</Text>
+                      </View>
+                      <View style={styles.cutHandleLine} />
+                      <View style={styles.cutHandleTriangle} />
+                    </View>
+                  )}
+
+                  {/* Invisible slider for seek */}
+                  <Slider
+                    style={[StyleSheet.absoluteFill, { opacity: 0, zIndex: 1 }]}
+                    minimumValue={0}
+                    maximumValue={Math.max(durationMs, 1)}
+                    value={positionMs}
+                    onSlidingStart={onSeekStart}
+                    onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
+                    onSlidingComplete={onSeekComplete}
+                  />
+                </>
+              ) : (
+                /* ── PLAYBACK MODE: scrolling waveform ──────────────────────── */
+                <>
+                  {/* Bars — programmatically scrolled, user scroll disabled */}
+                  <ScrollView
+                    ref={waveformScrollRef}
+                    horizontal
+                    scrollEnabled={false}
+                    showsHorizontalScrollIndicator={false}
+                    style={StyleSheet.absoluteFill}
+                    contentContainerStyle={{ paddingHorizontal: waveformContainerWidth / 2 }}
+                  >
+                    <View style={styles.waveformInner}>
+                      {waveformBars.map((h, i) => {
+                        const played = durationMs > 0 && (positionMs_live / durationMs) * WAVEFORM_BARS > i;
+                        return (
+                          <View key={i} style={[styles.waveBar, {
+                            height: h,
+                            backgroundColor: played ? colors.text : colors.icon + '44',
+                          }]} />
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+
+                  {/* Fixed centre playhead */}
+                  <View style={styles.wavePlayhead} pointerEvents="none" />
+
+                  {/* Invisible slider — rendered before markers so markers have higher z-order */}
+                  <Slider
+                    style={[StyleSheet.absoluteFill, { opacity: 0, zIndex: 1 }]}
+                    minimumValue={0}
+                    maximumValue={Math.max(durationMs, 1)}
+                    value={positionMs}
+                    onSlidingStart={onSeekStart}
+                    onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
+                    onSlidingComplete={onSeekComplete}
+                  />
 
               {/* Invisible slider — rendered before markers so markers have higher z-order */}
               <Slider
@@ -953,6 +984,8 @@ export default function DetailScreen() {
                   </View>
                 );
               })}
+                </>
+              )}
             </View>
 
             {/* ── CUT MODE CONTROLS ────────────────────────────────────────── */}
@@ -962,25 +995,32 @@ export default function DetailScreen() {
                   <Text style={{ color: colors.icon, fontSize: 14 }}>Bearbetar…</Text>
                 ) : (
                   <>
-                    <View style={styles.cutSelInfo}>
-                      <Text style={[styles.cutSelLabel, { color: colors.icon }]}>
-                        L {formatMs(selStart)} — R {formatMs(selEnd)} ({formatMs(selEnd - selStart)})
+                    {/* Play/pause + selection info */}
+                    <View style={styles.cutInfoRow}>
+                      <TouchableOpacity onPress={togglePlay} hitSlop={8} activeOpacity={0.7}>
+                        <Ionicons name={isPlaying ? 'pause-circle' : 'play-circle'} size={40} color={colors.text} />
+                      </TouchableOpacity>
+                      <Text style={[styles.cutSelLabel, { color: colors.text }]}>
+                        {formatMs(selStart)} — {formatMs(selEnd)}
+                        {'  '}
+                        <Text style={{ color: colors.icon }}>({formatMs(selEnd - selStart)})</Text>
                       </Text>
                     </View>
+                    {/* Cut action buttons — neutral colors, differentiated by fill vs outline */}
                     <View style={styles.cutButtons}>
                       <TouchableOpacity
-                        style={[styles.cutBtn, { borderColor: colors.tint }]}
+                        style={[styles.cutBtn, { backgroundColor: colors.text, borderColor: colors.text }]}
                         onPress={() => executeCut(true)}
                       >
-                        <Ionicons name="cut-outline" size={16} color={colors.tint} />
-                        <Text style={[styles.cutBtnText, { color: colors.tint }]}>Behåll markerat</Text>
+                        <Ionicons name="cut-outline" size={16} color={colors.background} />
+                        <Text style={[styles.cutBtnText, { color: colors.background }]}>Behåll markerat</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.cutBtn, { borderColor: '#e53935' }]}
+                        style={[styles.cutBtn, { borderColor: colors.text }]}
                         onPress={() => executeCut(false)}
                       >
-                        <Ionicons name="cut-outline" size={16} color="#e53935" />
-                        <Text style={[styles.cutBtnText, { color: '#e53935' }]}>Ta bort markerat</Text>
+                        <Ionicons name="cut-outline" size={16} color={colors.text} />
+                        <Text style={[styles.cutBtnText, { color: colors.text }]}>Ta bort markerat</Text>
                       </TouchableOpacity>
                     </View>
                   </>
@@ -1213,6 +1253,16 @@ export default function DetailScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Edit button below metadata */}
+            <TouchableOpacity
+              style={[styles.editMetaBtn, { borderColor: colors.icon + '33' }]}
+              onPress={startEditing}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="pencil" size={18} color={colors.icon} />
+              <Text style={[styles.editMetaBtnText, { color: colors.icon }]}>Redigera metadata</Text>
+            </TouchableOpacity>
           ) : (
             /* ── Edit form ─────────────────────────────────────────────────── */
             <View style={styles.section}>
@@ -1355,6 +1405,39 @@ export default function DetailScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Header overflow menu */}
+      <Modal visible={showHeaderMenu} transparent animationType="slide" onRequestClose={() => setShowHeaderMenu(false)}>
+        <TouchableOpacity style={styles.overlayDismiss} activeOpacity={1} onPress={() => setShowHeaderMenu(false)}>
+          <TouchableOpacity
+            style={[styles.bookmarkSheet, { backgroundColor: colors.background, paddingBottom: 16 + insets.bottom }]}
+            activeOpacity={1} onPress={() => {}}
+          >
+            <Text style={[styles.bookmarkSheetTitle, { color: colors.icon, borderBottomColor: colors.icon + '33' }]}>
+              {recording?.name || S.untitled}
+            </Text>
+            <TouchableOpacity style={styles.sheetMenuBtn} onPress={() => { setShowHeaderMenu(false); handleShare(); }}>
+              <Ionicons name="share-outline" size={22} color={colors.text} />
+              <Text style={[styles.sheetMenuText, { color: colors.text }]}>Dela</Text>
+            </TouchableOpacity>
+            <View style={[styles.sheetMenuDivider, { backgroundColor: colors.icon + '22' }]} />
+            <TouchableOpacity style={styles.sheetMenuBtn} onPress={enterCutMode}>
+              <Ionicons name="cut-outline" size={22} color={colors.text} />
+              <Text style={[styles.sheetMenuText, { color: colors.text }]}>Klipp ljud</Text>
+            </TouchableOpacity>
+            <View style={[styles.sheetMenuDivider, { backgroundColor: colors.icon + '22' }]} />
+            <TouchableOpacity style={styles.sheetMenuBtn} onPress={() => { setShowHeaderMenu(false); startEditing(); }}>
+              <Ionicons name="pencil" size={22} color={colors.text} />
+              <Text style={[styles.sheetMenuText, { color: colors.text }]}>Redigera</Text>
+            </TouchableOpacity>
+            <View style={[styles.sheetMenuDivider, { backgroundColor: colors.icon + '22' }]} />
+            <TouchableOpacity style={styles.sheetMenuBtn} onPress={() => { setShowHeaderMenu(false); handleDelete(); }}>
+              <Ionicons name="trash-outline" size={22} color="#e53935" />
+              <Text style={[styles.sheetMenuText, { color: '#e53935' }]}>Ta bort</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Bookmark list modal */}
       <Modal visible={showBookmarkList} transparent animationType="slide" onRequestClose={() => setShowBookmarkList(false)}>
@@ -1545,40 +1628,72 @@ const styles = StyleSheet.create({
   playBtn: {},
 
   // Selection handles (cut mode)
-  selHandleView: {
+  // Cut handles (white, full-height, with timestamp pill + triangle)
+  cutHandleView: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: 24,
+    alignItems: 'center',
   },
-  selHandleLabel: { fontSize: 10, fontWeight: '800', lineHeight: 13 },
-  selHandleLine: { width: 2, flex: 1, borderRadius: 1 },
+  cutHandleTimestampPill: {
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginBottom: 2,
+  },
+  cutHandleTimestampText: { color: 'white', fontSize: 9, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  cutHandleLine: { width: 2, flex: 1, backgroundColor: 'white', borderRadius: 1 },
+  cutHandleTriangle: {
+    width: 0, height: 0,
+    borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 9,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    borderTopColor: 'white',
+  },
 
   // Cut controls
-  cutControlsRow: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  cutSelInfo: { alignItems: 'center' },
-  cutSelLabel: { fontSize: 12, fontVariant: ['tabular-nums'] },
-  cutButtons: {
+  cutControlsRow: { width: '100%', gap: 8, paddingVertical: 4 },
+  cutInfoRow: {
     flexDirection: 'row',
-    gap: 10,
-    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 4,
   },
+  cutSelLabel: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'] },
+  cutButtons: { flexDirection: 'row', gap: 10, width: '100%' },
   cutBtn: {
-    flex: 1,
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 6,
+    paddingVertical: 12, borderRadius: 10, borderWidth: 1,
+  },
+  cutBtnText: { fontSize: 13, fontWeight: '600' },
+
+  // Edit button below metadata
+  editMetaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 16,
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
   },
-  cutBtnText: { fontSize: 13, fontWeight: '600' },
+  editMetaBtnText: { fontSize: 15, fontWeight: '500' },
+
+  // Header overflow menu
+  sheetMenuBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  sheetMenuText: { fontSize: 17 },
+  sheetMenuDivider: { height: StyleSheet.hairlineWidth, marginLeft: 20 },
 
   // Bookmark add icon plus sign
   bookmarkPlusSign: {
