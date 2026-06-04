@@ -3,6 +3,7 @@ import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import { getFreeDiskStorageAsync } from 'expo-file-system/legacy';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -276,17 +277,27 @@ export default function LibraryScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
-        // copyToCacheDirectory: true gives us a file:// URI directly — no manual
-        // copy needed, and it handles content:// URIs on Android reliably.
-        copyToCacheDirectory: true,
+        // copyToCacheDirectory is intentionally false for batch imports — copying
+        // hundreds of large files to cache before returning would fill the phone's
+        // storage and crash the app. copyToPermanentStorage handles content:// URIs.
+        // Single-file import keeps true so the metadata screen gets a stable file:// URI.
+        copyToCacheDirectory: false,
         multiple: true,
       });
       if (result.canceled) return;
       const { assets } = result;
 
       if (assets.length === 1) {
-        // Single file → open metadata form so user can fill in details
-        const asset = assets[0];
+        // Single file → open metadata form so user can fill in details.
+        // Re-pick with copyToCacheDirectory: true so the metadata screen gets a
+        // stable file:// URI that stays accessible after the picker closes.
+        const singleResult = await DocumentPicker.getDocumentAsync({
+          type: ['audio/*'],
+          copyToCacheDirectory: true,
+          multiple: false,
+        });
+        if (singleResult.canceled) return;
+        const asset = singleResult.assets[0];
         router.push({
           pathname: '/metadata',
           params: {
@@ -298,6 +309,22 @@ export default function LibraryScreen() {
           },
         });
       } else {
+        // ── Pre-flight: check available disk space ────────────────────────────
+        const totalBytes = assets.reduce((sum, a) => sum + (a.size ?? 0), 0);
+        if (totalBytes > 0) {
+          const freeBytes = await getFreeDiskStorageAsync();
+          const BUFFER = 200 * 1024 * 1024; // 200 MB safety buffer
+          if (freeBytes < totalBytes + BUFFER) {
+            const freeMB = Math.round(freeBytes / (1024 * 1024));
+            const needMB = Math.round((totalBytes + BUFFER) / (1024 * 1024));
+            Alert.alert(
+              'Inte tillräckligt med lagringsutrymme',
+              `Du har ${freeMB} MB ledigt men behöver minst ${needMB} MB för ${assets.length} filer. Frigör utrymme och försök igen.`
+            );
+            return;
+          }
+        }
+
         // Phase 1: insert all files fast (no probing) — files appear in library immediately
         const total = assets.length;
         let count = 0;
@@ -319,7 +346,19 @@ export default function LibraryScreen() {
             inserted.push({ id, filePath: finalUri });
             count++;
           } catch (e) {
-            Sentry.captureException(e, { tags: { flow: 'importAudioBatch' } });
+            const msg = String(e).toLowerCase();
+            const isDiskFull = msg.includes('enospc') || msg.includes('no space') || msg.includes('storage full') || msg.includes('disk');
+            Sentry.captureException(e, { tags: { flow: 'importAudioBatch', diskFull: String(isDiskFull) } });
+            if (isDiskFull) {
+              // Abort early — no point trying remaining files if disk is full
+              setImportProgress(null);
+              reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
+              Alert.alert(
+                'Lagringsutrymmet fullt',
+                `${count} av ${total} filer importerades innan lagringsutrymmet tog slut. Frigör utrymme och importera resterande filer.`
+              );
+              return;
+            }
           }
           setImportProgress({ done: count, total });
           if (count % 50 === 0) reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);

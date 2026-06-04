@@ -1,4 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
+import { cacheDirectory, copyAsync, deleteAsync } from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { saveAudioFile } from 'save-to-music';
 import * as Sentry from '@sentry/react-native';
@@ -126,14 +127,14 @@ export function copyAttachmentToStorage(cacheUri: string, originalFileName: stri
  * iOS     : Tier 2 — app documents (visible in Files app via UIFileSharingEnabled)
  */
 export async function copyToPermanentStorage(
-  cacheUri: string,
+  sourceUri: string,
   title = 'Untitled',
 ): Promise<string> {
-  console.log('[Save] copyToPermanentStorage — title:', title, 'cacheUri:', cacheUri);
+  console.log('[Save] copyToPermanentStorage — title:', title, 'sourceUri:', sourceUri);
 
   if (Platform.OS === 'android') {
     const displayName = generateSafeFilename(title, []);
-    const native = await tryNativeSave(cacheUri, displayName);
+    const native = await tryNativeSave(sourceUri, displayName);
     if (native) {
       Sentry.addBreadcrumb({ category: 'save', message: 'copyToPermanentStorage complete (Tier 1)', level: 'info' });
       console.log('[Save] saved via Tier 1 (Music/VoiceRecorder):', native);
@@ -141,8 +142,24 @@ export async function copyToPermanentStorage(
     }
   }
 
-  const docs = writeToDocuments(cacheUri, title);
-  Sentry.addBreadcrumb({ category: 'save', message: 'copyToPermanentStorage complete (Tier 2)', level: 'info', data: { platform: Platform.OS } });
-  console.log('[Save] saved via Tier 2 (documents):', docs);
-  return docs;
+  // Tier 2: app documents. expo-file-system's File class only works with
+  // file:// URIs — for content:// (e.g. when copyToCacheDirectory is false),
+  // copy to a temp cache location first, then move to documents.
+  let workingUri = sourceUri;
+  let tempUri: string | null = null;
+  if (sourceUri.startsWith('content://')) {
+    const ext = sourceUri.replace(/\?.*$/, '').match(/\.([a-zA-Z0-9]+)$/)?.[1] ?? 'm4a';
+    tempUri = `${cacheDirectory}import_tmp_${Date.now()}.${ext}`;
+    await copyAsync({ from: sourceUri, to: tempUri });
+    workingUri = tempUri;
+  }
+
+  try {
+    const docs = writeToDocuments(workingUri, title);
+    Sentry.addBreadcrumb({ category: 'save', message: 'copyToPermanentStorage complete (Tier 2)', level: 'info', data: { platform: Platform.OS } });
+    console.log('[Save] saved via Tier 2 (documents):', docs);
+    return docs;
+  } finally {
+    if (tempUri) await deleteAsync(tempUri, { idempotent: true }).catch(() => {});
+  }
 }
