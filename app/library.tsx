@@ -277,10 +277,11 @@ export default function LibraryScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
-        // copyToCacheDirectory is intentionally false for batch imports — copying
-        // hundreds of large files to cache before returning would fill the phone's
-        // storage and crash the app. copyToPermanentStorage handles content:// URIs.
-        // Single-file import keeps true so the metadata screen gets a stable file:// URI.
+        // copyToCacheDirectory: false — never copy files to cache during the picker.
+        // Previously this was true, which caused Android to copy ALL selected files
+        // to the app cache before returning. With 3.5 GB selected on a 2 GB phone
+        // this crashed the app in native code before any JS ran.
+        // copyToPermanentStorage now handles content:// URIs directly.
         copyToCacheDirectory: false,
         multiple: true,
       });
@@ -289,15 +290,7 @@ export default function LibraryScreen() {
 
       if (assets.length === 1) {
         // Single file → open metadata form so user can fill in details.
-        // Re-pick with copyToCacheDirectory: true so the metadata screen gets a
-        // stable file:// URI that stays accessible after the picker closes.
-        const singleResult = await DocumentPicker.getDocumentAsync({
-          type: ['audio/*'],
-          copyToCacheDirectory: true,
-          multiple: false,
-        });
-        if (singleResult.canceled) return;
-        const asset = singleResult.assets[0];
+        const asset = assets[0];
         router.push({
           pathname: '/metadata',
           params: {
