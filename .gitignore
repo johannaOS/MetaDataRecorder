@@ -51,7 +51,8 @@ voicerecorder_architecture.md
 adb_logs.txt
 prompt.txt
 
-# Local assets — not tracked in git
+# Local assets and scratch files — not tracked in git
 assets/funktioner.txt
 Screenshot*.jpg
 Screenshot*.png
+local/
