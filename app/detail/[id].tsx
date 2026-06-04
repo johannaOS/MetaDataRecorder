@@ -131,9 +131,17 @@ export default function DetailScreen() {
   const playbackRateRef = useRef(1.0);
   const [showSpeedPanel, setShowSpeedPanel] = useState(false);
 
-  // Ref kept in sync with durationMs so PanResponder callbacks can read it without stale closures
+  // Refs kept in sync so PanResponder callbacks read current values without stale closures
   const durationMsRef = useRef(0);
+  const positionMsLiveRef = useRef(0);
+  const isPlayingRef = useRef(false);
   useEffect(() => { durationMsRef.current = durationMs; }, [durationMs]);
+  useEffect(() => { positionMsLiveRef.current = positionMs_live; }, [positionMs_live]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+  // Seek gesture state
+  const seekStartPosRef = useRef(0);
+  const seekStartXRef = useRef(0);
 
   // ── Cut mode ──────────────────────────────────────────────────────────────
   const [cutMode, setCutMode] = useState(false);
@@ -152,6 +160,48 @@ export default function DetailScreen() {
   const cutScrollX   = useRef(0); // current scroll offset in pixels
   const baseZoom     = useRef(1); // zoom at pinch start
   const baseScrollX  = useRef(0); // scroll at pinch start
+
+  // Scrub bar — maps visual waveform position to audio time correctly.
+  // The playhead is fixed at center; tap/drag seeks to the visually shown position.
+  // Drag right = seek backward (older content scrolls right past the playhead).
+  // Drag left  = seek forward  (newer content arrives from the right).
+  const seekPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => !cutModeRef.current,
+    onMoveShouldSetPanResponder:  () => !cutModeRef.current,
+    onPanResponderGrant: (e) => {
+      isSeekingRef.current = true;
+      wasPlayingRef.current = isPlayingRef.current;
+      seekStartPosRef.current = positionMsLiveRef.current;
+      seekStartXRef.current = e.nativeEvent.locationX;
+      soundRef.current?.pauseAsync().catch(() => {});
+    },
+    onPanResponderMove: (_, g) => {
+      const dur = durationMsRef.current;
+      // Drag right (positive dx) → earlier in time; drag left → later
+      const newPos = Math.max(0, Math.min(dur,
+        seekStartPosRef.current - g.dx * dur / WAVEFORM_TOTAL_W
+      ));
+      setSeekPositionMs(newPos);
+    },
+    onPanResponderRelease: (_, g) => {
+      const dur = durationMsRef.current;
+      const cw = waveformContainerWidthRef.current;
+      let finalPos: number;
+      if (Math.abs(g.dx) <= 8) {
+        // Tap — seek to the audio time visually shown at the tap location
+        finalPos = Math.max(0, Math.min(dur,
+          seekStartPosRef.current + (seekStartXRef.current - cw / 2) * dur / WAVEFORM_TOTAL_W
+        ));
+      } else {
+        // Drag — use relative displacement
+        finalPos = Math.max(0, Math.min(dur,
+          seekStartPosRef.current - g.dx * dur / WAVEFORM_TOTAL_W
+        ));
+      }
+      onSeekComplete(finalPos);
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   const pinchGesture = useMemo(() => Gesture.Pinch()
     .onBegin(() => {
@@ -947,15 +997,11 @@ export default function DetailScreen() {
                   {/* Fixed centre playhead */}
                   <View style={styles.wavePlayhead} pointerEvents="none" />
 
-                  {/* Invisible slider — rendered before markers so markers have higher z-order */}
-                  <Slider
-                    style={[StyleSheet.absoluteFill, { opacity: 0, zIndex: 1 }]}
-                    minimumValue={0}
-                    maximumValue={Math.max(durationMs, 1)}
-                    value={positionMs}
-                    onSlidingStart={onSeekStart}
-                    onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
-                    onSlidingComplete={onSeekComplete}
+                  {/* Seek handler — PanResponder correctly maps visual waveform position to audio time.
+                      Rendered at zIndex 1 so markers (zIndex 2+) still intercept their own touches. */}
+                  <View
+                    {...seekPanResponder.panHandlers}
+                    style={[StyleSheet.absoluteFill, { zIndex: 1 }]}
                   />
 
               {/* Invisible slider — rendered before markers so markers have higher z-order */}
