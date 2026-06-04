@@ -1221,6 +1221,7 @@ export default function DetailScreen() {
 
           {/* ── Metadata display ───────────────────────────────────────────── */}
           {!isEditing ? (
+            <>
             <View style={styles.section}>
               {/* Name heading */}
               <Text style={[styles.recordingTitle, { color: colors.text }]}>
@@ -1349,6 +1350,7 @@ export default function DetailScreen() {
               <Ionicons name="pencil" size={18} color={colors.icon} />
               <Text style={[styles.editMetaBtnText, { color: colors.icon }]}>Redigera metadata</Text>
             </TouchableOpacity>
+            </>
           ) : (
             /* ── Edit form ─────────────────────────────────────────────────── */
             <View style={styles.section}>
