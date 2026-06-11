@@ -632,12 +632,13 @@ export default function DetailScreen() {
       // Pause playback before saving
       await soundRef.current?.pauseAsync().catch(() => {});
 
-      const handleSave = async (thenEdit: boolean) => {
+      const handleSave = async (openCopy: boolean) => {
         try {
           const newId = await saveCutCopy(outputUri, keepSelected);
           exitCutMode();
-          if (thenEdit) {
-            router.push({ pathname: '/detail/[id]', params: { id: String(newId), openEdit: '1' } });
+          if (openCopy) {
+            // Open the new copy's detail screen (view mode, not the edit form)
+            router.push({ pathname: '/detail/[id]', params: { id: String(newId) } });
           } else {
             router.push('/library');
           }
