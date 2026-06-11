@@ -3,6 +3,7 @@ import { Audio } from 'expo-av';
 import * as Sentry from '@sentry/react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import { getFreeDiskStorageAsync } from 'expo-file-system/legacy';
 import { hidePlaybackNotification, showPlaybackNotification } from '@/lib/backgroundRecording';
 import { router, Stack, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -102,6 +103,8 @@ export default function LibraryScreen() {
   const isSelecting = selectedIds.size > 0;
   const [showTagModal, setShowTagModal] = useState(false);
   const [tagModalInput, setTagModalInput] = useState('');
+  // Tags ticked in the batch-tag modal but not yet applied (apply on "Tillämpa").
+  const [pendingTags, setPendingTags] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
@@ -175,21 +178,39 @@ export default function LibraryScreen() {
     if (tagFilter === editingTag) setTagFilter(newName);
   }
 
-  function applyTagToSelected(tag: string) {
-    const trimmed = tag.trim();
-    if (!trimmed) return;
+  // Applies one or more tags to all selected recordings, then closes the modal.
+  function applyTagsToSelected(tags: string[]) {
+    const clean = tags.map(t => t.trim()).filter(Boolean);
+    if (clean.length === 0) { setShowTagModal(false); return; }
     for (const id of selectedIds) {
       const rec = recordings.find(r => r.id === id);
       if (!rec) continue;
       const existing = parseTags(rec.tags);
-      if (!existing.includes(trimmed)) {
-        updateRecording(id, { tags: JSON.stringify([...existing, trimmed]) });
+      const merged = [...existing];
+      for (const t of clean) if (!merged.includes(t)) merged.push(t);
+      if (merged.length !== existing.length) {
+        updateRecording(id, { tags: JSON.stringify(merged) });
       }
     }
     setTagModalInput('');
+    setPendingTags(new Set());
     setShowTagModal(false);
     cancelSelection();
     reload(search, typeFilter, tagFilter);
+  }
+
+  // Toggle a tag chip in the pending set (does not apply until "Tillämpa").
+  function togglePendingTag(tag: string) {
+    setPendingTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+  }
+
+  // Commit the ticked chips plus any typed-in tag.
+  function applyPendingTags() {
+    applyTagsToSelected([...pendingTags, tagModalInput]);
   }
 
   // ── Header options — selection mode vs normal ─────────────────────────────────
@@ -215,7 +236,7 @@ export default function LibraryScreen() {
                 <Ionicons name="pencil-outline" size={22} color={colors.tint} />
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => { setTagModalInput(''); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
+            <TouchableOpacity onPress={() => { setTagModalInput(''); setPendingTags(new Set()); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
               <Ionicons name="pricetag-outline" size={22} color={colors.tint} />
             </TouchableOpacity>
             <TouchableOpacity onPress={showExportPrompt} hitSlop={8} style={{ padding: 4 }} disabled={isExporting}>
@@ -276,16 +297,19 @@ export default function LibraryScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
-        // copyToCacheDirectory: true gives us a file:// URI directly — no manual
-        // copy needed, and it handles content:// URIs on Android reliably.
-        copyToCacheDirectory: true,
+        // copyToCacheDirectory: false — never copy files to cache during the picker.
+        // Previously this was true, which caused Android to copy ALL selected files
+        // to the app cache before returning. With 3.5 GB selected on a 2 GB phone
+        // this crashed the app in native code before any JS ran.
+        // copyToPermanentStorage now handles content:// URIs directly.
+        copyToCacheDirectory: false,
         multiple: true,
       });
       if (result.canceled) return;
       const { assets } = result;
 
       if (assets.length === 1) {
-        // Single file → open metadata form so user can fill in details
+        // Single file → open metadata form so user can fill in details.
         const asset = assets[0];
         router.push({
           pathname: '/metadata',
@@ -298,6 +322,22 @@ export default function LibraryScreen() {
           },
         });
       } else {
+        // ── Pre-flight: check available disk space ────────────────────────────
+        const totalBytes = assets.reduce((sum, a) => sum + (a.size ?? 0), 0);
+        if (totalBytes > 0) {
+          const freeBytes = await getFreeDiskStorageAsync();
+          const BUFFER = 200 * 1024 * 1024; // 200 MB safety buffer
+          if (freeBytes < totalBytes + BUFFER) {
+            const freeMB = Math.round(freeBytes / (1024 * 1024));
+            const needMB = Math.round((totalBytes + BUFFER) / (1024 * 1024));
+            Alert.alert(
+              'Inte tillräckligt med lagringsutrymme',
+              `Du har ${freeMB} MB ledigt men behöver minst ${needMB} MB för ${assets.length} filer. Frigör utrymme och försök igen.`
+            );
+            return;
+          }
+        }
+
         // Phase 1: insert all files fast (no probing) — files appear in library immediately
         const total = assets.length;
         let count = 0;
@@ -319,7 +359,19 @@ export default function LibraryScreen() {
             inserted.push({ id, filePath: finalUri });
             count++;
           } catch (e) {
-            Sentry.captureException(e, { tags: { flow: 'importAudioBatch' } });
+            const msg = String(e).toLowerCase();
+            const isDiskFull = msg.includes('enospc') || msg.includes('no space') || msg.includes('storage full') || msg.includes('disk');
+            Sentry.captureException(e, { tags: { flow: 'importAudioBatch', diskFull: String(isDiskFull) } });
+            if (isDiskFull) {
+              // Abort early — no point trying remaining files if disk is full
+              setImportProgress(null);
+              reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
+              Alert.alert(
+                'Lagringsutrymmet fullt',
+                `${count} av ${total} filer importerades innan lagringsutrymmet tog slut. Frigör utrymme och importera resterande filer.`
+              );
+              return;
+            }
           }
           setImportProgress({ done: count, total });
           if (count % 50 === 0) reload(searchRef.current, typeFilterRef.current, tagFilterRef.current);
@@ -833,13 +885,18 @@ export default function LibraryScreen() {
               <View style={styles.tagModalChips}>
                 {allTags.map(tag => {
                   const tc = tagColor(tag);
+                  const picked = pendingTags.has(tag);
                   return (
                     <TouchableOpacity
                       key={tag}
-                      style={[styles.tagModalChip, { backgroundColor: tc.bg, borderColor: tc.text + '55' }]}
-                      onPress={() => applyTagToSelected(tag)}
+                      style={[styles.tagModalChip, {
+                        backgroundColor: picked ? tc.text : tc.bg,
+                        borderColor: tc.text + (picked ? 'ff' : '55'),
+                      }]}
+                      onPress={() => togglePendingTag(tag)}
                     >
-                      <Text style={[styles.tagModalChipText, { color: tc.text }]}>{tag}</Text>
+                      {picked && <Ionicons name="checkmark" size={13} color={tc.bg} style={{ marginRight: 3 }} />}
+                      <Text style={[styles.tagModalChipText, { color: picked ? tc.bg : tc.text }]}>{tag}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -853,13 +910,13 @@ export default function LibraryScreen() {
               onChangeText={setTagModalInput}
               autoFocus={allTags.length === 0}
               returnKeyType="done"
-              onSubmitEditing={() => applyTagToSelected(tagModalInput)}
+              onSubmitEditing={applyPendingTags}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalBtn, { borderColor: colors.icon + '55' }]} onPress={() => setShowTagModal(false)}>
                 <Text style={[styles.modalBtnText, { color: colors.icon }]}>{S.cancel}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#00A878' }]} onPress={() => applyTagToSelected(tagModalInput)}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#00A878' }]} onPress={applyPendingTags}>
                 <Text style={[styles.modalBtnText, { color: 'white' }]}>{S.applyTag}</Text>
               </TouchableOpacity>
             </View>
@@ -1085,7 +1142,7 @@ const styles = StyleSheet.create({
   tagDot: { width: 7, height: 7, borderRadius: 3.5 },
 
   tagModalChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tagModalChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1 },
+  tagModalChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1 },
   tagModalChipText: { fontSize: 14, fontWeight: '500' },
 
   row: {

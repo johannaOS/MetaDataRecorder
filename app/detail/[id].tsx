@@ -1461,6 +1461,7 @@ export default function DetailScreen() {
                 {/* Suggestions — horizontal scroll handles many tags without layout explosion */}
                 {allTags.filter(t => !editTags.includes(t)).length > 0 && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                     style={{ marginBottom: 6 }}
                     contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
                     {allTags.filter(t => !editTags.includes(t)).map(tag => {
@@ -1486,24 +1487,28 @@ export default function DetailScreen() {
                 />
               </View>
 
-              <View style={styles.editActions}>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: SAVE_COLOR }]}
-                  onPress={saveEditing}
-                >
-                  <Ionicons name="checkmark" size={18} color="white" />
-                  <Text style={styles.actionBtnPrimaryText}>{S.save}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnSecondary, { borderColor: colors.icon + '66' }]}
-                  onPress={cancelEditing}
-                >
-                  <Text style={[styles.actionBtnSecondaryText, { color: colors.icon }]}>{S.cancel}</Text>
-                </TouchableOpacity>
-              </View>
             </View>
           )}
         </ScrollView>
+
+        {/* Fixed Save/Cancel footer — only in edit mode, always visible without scrolling */}
+        {isEditing && (
+          <View style={[styles.editFooter, { borderTopColor: colors.icon + '22', backgroundColor: colors.background, paddingBottom: 12 + insets.bottom }]}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnSecondary, { flex: 1, borderColor: colors.icon + '66' }]}
+              onPress={cancelEditing}
+            >
+              <Text style={[styles.actionBtnSecondaryText, { color: colors.icon }]}>{S.cancel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { flex: 1, backgroundColor: SAVE_COLOR }]}
+              onPress={saveEditing}
+            >
+              <Ionicons name="checkmark" size={18} color="white" />
+              <Text style={styles.actionBtnPrimaryText}>{S.save}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
 
       {/* Header overflow menu */}
@@ -1903,6 +1908,13 @@ const styles = StyleSheet.create({
   },
   notesInput: { minHeight: 90 },
   editActions: { gap: 10, marginTop: 8 },
+  editFooter: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',

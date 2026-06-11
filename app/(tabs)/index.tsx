@@ -700,6 +700,7 @@ export default function RecorderScreen() {
             {/* Existing tags not yet selected — horizontal scroll handles many tags without layout explosion */}
             {allExistingTags.filter(t => !formTags.includes(t)).length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 style={{ marginBottom: 8 }}
                 contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
                 {allExistingTags.filter(t => !formTags.includes(t)).map(tag => {

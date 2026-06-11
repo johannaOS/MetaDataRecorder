@@ -510,6 +510,7 @@ export default function MetadataScreen() {
           )}
           {allExistingTags.filter(t => !tags.includes(t)).length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               style={{ marginBottom: 8 }}
               contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
               {allExistingTags.filter(t => !tags.includes(t)).map(tag => {
