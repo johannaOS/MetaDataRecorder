@@ -103,6 +103,8 @@ export default function LibraryScreen() {
   const isSelecting = selectedIds.size > 0;
   const [showTagModal, setShowTagModal] = useState(false);
   const [tagModalInput, setTagModalInput] = useState('');
+  // Tags ticked in the batch-tag modal but not yet applied (apply on "Tillämpa").
+  const [pendingTags, setPendingTags] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
@@ -176,21 +178,39 @@ export default function LibraryScreen() {
     if (tagFilter === editingTag) setTagFilter(newName);
   }
 
-  function applyTagToSelected(tag: string) {
-    const trimmed = tag.trim();
-    if (!trimmed) return;
+  // Applies one or more tags to all selected recordings, then closes the modal.
+  function applyTagsToSelected(tags: string[]) {
+    const clean = tags.map(t => t.trim()).filter(Boolean);
+    if (clean.length === 0) { setShowTagModal(false); return; }
     for (const id of selectedIds) {
       const rec = recordings.find(r => r.id === id);
       if (!rec) continue;
       const existing = parseTags(rec.tags);
-      if (!existing.includes(trimmed)) {
-        updateRecording(id, { tags: JSON.stringify([...existing, trimmed]) });
+      const merged = [...existing];
+      for (const t of clean) if (!merged.includes(t)) merged.push(t);
+      if (merged.length !== existing.length) {
+        updateRecording(id, { tags: JSON.stringify(merged) });
       }
     }
     setTagModalInput('');
+    setPendingTags(new Set());
     setShowTagModal(false);
     cancelSelection();
     reload(search, typeFilter, tagFilter);
+  }
+
+  // Toggle a tag chip in the pending set (does not apply until "Tillämpa").
+  function togglePendingTag(tag: string) {
+    setPendingTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+  }
+
+  // Commit the ticked chips plus any typed-in tag.
+  function applyPendingTags() {
+    applyTagsToSelected([...pendingTags, tagModalInput]);
   }
 
   // ── Header options — selection mode vs normal ─────────────────────────────────
@@ -216,7 +236,7 @@ export default function LibraryScreen() {
                 <Ionicons name="pencil-outline" size={22} color={colors.tint} />
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => { setTagModalInput(''); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
+            <TouchableOpacity onPress={() => { setTagModalInput(''); setPendingTags(new Set()); setShowTagModal(true); }} hitSlop={8} style={{ padding: 4 }}>
               <Ionicons name="pricetag-outline" size={22} color={colors.tint} />
             </TouchableOpacity>
             <TouchableOpacity onPress={showExportPrompt} hitSlop={8} style={{ padding: 4 }} disabled={isExporting}>
@@ -865,13 +885,18 @@ export default function LibraryScreen() {
               <View style={styles.tagModalChips}>
                 {allTags.map(tag => {
                   const tc = tagColor(tag);
+                  const picked = pendingTags.has(tag);
                   return (
                     <TouchableOpacity
                       key={tag}
-                      style={[styles.tagModalChip, { backgroundColor: tc.bg, borderColor: tc.text + '55' }]}
-                      onPress={() => applyTagToSelected(tag)}
+                      style={[styles.tagModalChip, {
+                        backgroundColor: picked ? tc.text : tc.bg,
+                        borderColor: tc.text + (picked ? 'ff' : '55'),
+                      }]}
+                      onPress={() => togglePendingTag(tag)}
                     >
-                      <Text style={[styles.tagModalChipText, { color: tc.text }]}>{tag}</Text>
+                      {picked && <Ionicons name="checkmark" size={13} color={tc.bg} style={{ marginRight: 3 }} />}
+                      <Text style={[styles.tagModalChipText, { color: picked ? tc.bg : tc.text }]}>{tag}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -885,13 +910,13 @@ export default function LibraryScreen() {
               onChangeText={setTagModalInput}
               autoFocus={allTags.length === 0}
               returnKeyType="done"
-              onSubmitEditing={() => applyTagToSelected(tagModalInput)}
+              onSubmitEditing={applyPendingTags}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalBtn, { borderColor: colors.icon + '55' }]} onPress={() => setShowTagModal(false)}>
                 <Text style={[styles.modalBtnText, { color: colors.icon }]}>{S.cancel}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#00A878' }]} onPress={() => applyTagToSelected(tagModalInput)}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#00A878' }]} onPress={applyPendingTags}>
                 <Text style={[styles.modalBtnText, { color: 'white' }]}>{S.applyTag}</Text>
               </TouchableOpacity>
             </View>
@@ -1117,7 +1142,7 @@ const styles = StyleSheet.create({
   tagDot: { width: 7, height: 7, borderRadius: 3.5 },
 
   tagModalChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tagModalChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1 },
+  tagModalChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1 },
   tagModalChipText: { fontSize: 14, fontWeight: '500' },
 
   row: {
