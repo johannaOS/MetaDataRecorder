@@ -6,6 +6,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -86,16 +87,18 @@ export default Sentry.wrap(function RootLayout() {
   })(); }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="metadata" options={{ title: S.addDetails, headerBackTitle: S.discardBackButton }} />
-        <Stack.Screen name="library" options={{ title: S.library }} />
-        <Stack.Screen name="detail/[id]" options={{ title: S.recordingScreenTitle }} />
-        <Stack.Screen name="fields" options={{ title: S.manageFields }} />
-        <Stack.Screen name="settings" options={{ title: S.settingsTitle }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="metadata" options={{ title: S.addDetails, headerBackTitle: S.discardBackButton }} />
+          <Stack.Screen name="library" options={{ title: S.library }} />
+          <Stack.Screen name="detail/[id]" options={{ title: S.recordingScreenTitle }} />
+          <Stack.Screen name="fields" options={{ title: S.manageFields }} />
+          <Stack.Screen name="settings" options={{ title: S.settingsTitle }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 });

@@ -43,7 +43,9 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.expo.dev)",
-      "WebFetch(domain:gist.github.com)"
+      "WebFetch(domain:gist.github.com)",
+      "PowerShell(git *)",
+      "WebFetch(domain:expo.dev)"
     ]
   }
 }
