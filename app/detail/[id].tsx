@@ -907,7 +907,7 @@ export default function DetailScreen() {
               {cutMode ? (
                 /* ── CUT MODE: zoomable full-file waveform (pinch to zoom) ─── */
                 <GestureDetector gesture={pinchGesture}>
-                  <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                  <View style={StyleSheet.absoluteFill} collapsable={false}>
                     {/* Bars — shifted left by cutScrollX, width scaled by cutZoom */}
                     <View pointerEvents="none" style={{
                       position: 'absolute', top: 0, bottom: 0,
@@ -1009,25 +1009,14 @@ export default function DetailScreen() {
                   {/* Fixed centre playhead */}
                   <View style={styles.wavePlayhead} pointerEvents="none" />
 
-                  {/* Seek handler — PanResponder correctly maps visual waveform position to audio time.
-                      Rendered at zIndex 1 so markers (zIndex 2+) still intercept their own touches. */}
+                  {/* Seek handler — PanResponder correctly maps visual waveform position to audio
+                      time. Must be the ONLY seek handler (no Slider) and topmost except markers. */}
                   <View
                     {...seekPanResponder.panHandlers}
                     style={[StyleSheet.absoluteFill, { zIndex: 1 }]}
                   />
 
-              {/* Invisible slider — rendered before markers so markers have higher z-order */}
-              <Slider
-                style={[StyleSheet.absoluteFill, { opacity: 0, zIndex: 1 }]}
-                minimumValue={0}
-                maximumValue={Math.max(durationMs, 1)}
-                value={positionMs}
-                onSlidingStart={onSeekStart}
-                onValueChange={v => { if (seekPositionMs !== null) setSeekPositionMs(v); }}
-                onSlidingComplete={onSeekComplete}
-              />
-
-              {/* Bookmark markers — zIndex 2 so long-press is not blocked by slider */}
+              {/* Bookmark markers — zIndex 2 so long-press is not blocked by the seek handler */}
               {durationMs > 0 && bookmarks.map((bm, idx) => {
                 const screenX = waveformContainerWidth / 2
                   + (bm.position_ms - positionMs) / durationMs * waveformTotalW;
