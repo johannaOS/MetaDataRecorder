@@ -601,6 +601,26 @@ export default function DetailScreen() {
     setCutZoom(1); cutZoomRef.current = 1; cutScrollX.current = 0;
   }
 
+  // Persists the cut output as a new recording, copying the original's metadata.
+  // Returns the new recording's id.
+  async function saveCutCopy(outputUri: string, keepSelected: boolean): Promise<number> {
+    if (!recording) throw new Error('No recording');
+    const finalUri = await copyToPermanentStorage(outputUri, recording.name + ' (klippt)');
+    return insertRecording({
+      name: recording.name + ' (klippt)',
+      ofAfter: recording.ofAfter,
+      origin: recording.origin,
+      songType: recording.songType,
+      performer: recording.performer,
+      notes: recording.notes,
+      filePath: finalUri,
+      duration: Math.round(keepSelected ? (selEnd - selStart) / 1000 : (durationMs - (selEnd - selStart)) / 1000),
+      createdAt: new Date().toISOString(),
+      customData: recording.customData,
+      tags: recording.tags,
+    });
+  }
+
   async function executeCut(keepSelected: boolean) {
     if (!recording) return;
     setIsCutProcessing(true);
@@ -609,41 +629,32 @@ export default function DetailScreen() {
         ? await cutKeepSelected(recording.filePath, selStart, selEnd)
         : await cutRemoveSelected(recording.filePath, selStart, selEnd, durationMs);
 
-      // Pause playback before replacing the file
+      // Pause playback before saving
       await soundRef.current?.pauseAsync().catch(() => {});
+
+      const handleSave = async (thenEdit: boolean) => {
+        try {
+          const newId = await saveCutCopy(outputUri, keepSelected);
+          exitCutMode();
+          if (thenEdit) {
+            router.push({ pathname: '/detail/[id]', params: { id: String(newId), openEdit: '1' } });
+          } else {
+            router.push('/library');
+          }
+        } catch (e) {
+          Sentry.captureException(e, { tags: { flow: 'saveCut' } });
+          Alert.alert(S.error, String(e));
+          setIsCutProcessing(false);
+        }
+      };
 
       Alert.alert(
         'Klippning klar',
         keepSelected ? 'Behåll det markerade avsnittet?' : 'Ta bort det markerade avsnittet?',
         [
+          { text: 'Redigera denna kopia', onPress: () => handleSave(true) },
+          { text: 'Spara som kopia', onPress: () => handleSave(false) },
           { text: S.cancel, style: 'cancel', onPress: () => setIsCutProcessing(false) },
-          {
-            text: 'Spara som ny inspelning',
-            onPress: async () => {
-              try {
-                const finalUri = await copyToPermanentStorage(outputUri, recording.name + ' (klippt)');
-                insertRecording({
-                  name: recording.name + ' (klippt)',
-                  ofAfter: recording.ofAfter,
-                  origin: recording.origin,
-                  songType: recording.songType,
-                  performer: recording.performer,
-                  notes: recording.notes,
-                  filePath: finalUri,
-                  duration: Math.round(keepSelected ? (selEnd - selStart) / 1000 : (durationMs - (selEnd - selStart)) / 1000),
-                  createdAt: new Date().toISOString(),
-                  customData: recording.customData,
-                  tags: recording.tags,
-                });
-                exitCutMode();
-                router.push('/library');
-              } catch (e) {
-                Sentry.captureException(e, { tags: { flow: 'saveCut' } });
-                Alert.alert(S.error, String(e));
-                setIsCutProcessing(false);
-              }
-            },
-          },
         ],
       );
     } catch (e) {
