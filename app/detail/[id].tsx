@@ -154,12 +154,16 @@ export default function DetailScreen() {
   const [isCutProcessing, setIsCutProcessing] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
 
-  // Cut mode zoom — driven by pinch gesture
+  // Cut mode zoom/scroll. zoom=1 → whole file fits the container (overview);
+  // zoom>1 → zoomed in, horizontally scrollable. Scroll is in content pixels.
   const [cutZoom, setCutZoom] = useState(1);
-  const cutZoomRef   = useRef(1);
-  const cutScrollX   = useRef(0); // current scroll offset in pixels
-  const baseZoom     = useRef(1); // zoom at pinch start
-  const baseScrollX  = useRef(0); // scroll at pinch start
+  const cutZoomRef    = useRef(1);
+  const [cutScrollX, setCutScrollX] = useState(0);
+  const cutScrollXRef = useRef(0);
+  const baseZoom      = useRef(1); // zoom at pinch start
+  const baseFocalFrac = useRef(0); // time-fraction under the pinch focal point
+  const panStartScrollX = useRef(0);
+  const handleBaseMs  = useRef(0); // selection-edge value at drag start
 
   // Scrub bar — maps visual waveform position to audio time correctly.
   // The playhead is fixed at center; tap/drag seeks to the visually shown position.
@@ -203,26 +207,78 @@ export default function DetailScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
 
-  const pinchGesture = useMemo(() => Gesture.Pinch()
-    .onBegin(() => {
-      baseZoom.current    = cutZoomRef.current;
-      baseScrollX.current = cutScrollX.current;
+  // Clamp + commit a scroll offset (content px) for the cut-mode waveform.
+  const applyCutScroll = (x: number) => {
+    const cw = waveformContainerWidthRef.current;
+    const contentW = cw * cutZoomRef.current;
+    const clamped = Math.max(0, Math.min(Math.max(0, contentW - cw), x));
+    cutScrollXRef.current = clamped;
+    setCutScrollX(clamped);
+  };
+
+  // Per-handle pan gestures. Defined before the container pan so the container
+  // can require them to fail (touch a handle → move the handle, don't scroll).
+  const makeHandleGesture = (which: 'L' | 'R') => Gesture.Pan()
+    .onBegin(() => { handleBaseMs.current = which === 'L' ? selStartRef.current : selEndRef.current; })
+    .onUpdate((e) => {
+      const cw = waveformContainerWidthRef.current;
+      const contentW = cw * cutZoomRef.current;
+      const dur = durationMsRef.current;
+      const dMs = (e.translationX / contentW) * dur;
+      let v = handleBaseMs.current + dMs;
+      if (which === 'L') { v = Math.max(0, Math.min(selEndRef.current - 500, v)); selStartRef.current = v; setSelStart(v); }
+      else               { v = Math.max(selStartRef.current + 500, Math.min(dur, v)); selEndRef.current = v; setSelEnd(v); }
+    })
+    .runOnJS(true);
+
+  const selStartGesture = useMemo(() => makeHandleGesture('L'),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  []);
+  const selEndGesture = useMemo(() => makeHandleGesture('R'),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  []);
+
+  // Pinch → zoom (1×–8×), anchored on the time under the focal point.
+  const cutPinch = useMemo(() => Gesture.Pinch()
+    .onBegin((e) => {
+      const cw = waveformContainerWidthRef.current || 1;
+      baseZoom.current = cutZoomRef.current;
+      baseFocalFrac.current = (cutScrollXRef.current + e.focalX) / (cw * cutZoomRef.current);
     })
     .onUpdate((e) => {
       const cw = waveformContainerWidthRef.current;
       if (cw === 0) return;
       const newZoom = Math.max(1, Math.min(8, baseZoom.current * e.scale));
-      const newScrollX = Math.max(0, Math.min(
-        cw * (newZoom - 1),
-        (baseScrollX.current + e.focalX) * (newZoom / baseZoom.current) - e.focalX,
-      ));
       cutZoomRef.current = newZoom;
-      cutScrollX.current = newScrollX;
       setCutZoom(newZoom);
+      applyCutScroll(baseFocalFrac.current * cw * newZoom - e.focalX);
     })
     .runOnJS(true),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   []);
+
+  // One-finger drag → scroll the zoomed waveform; a tap (no drag) → seek there.
+  // Requires the handle gestures to fail first, so dragging a handle never scrolls.
+  const cutPan = useMemo(() => Gesture.Pan()
+    .requireExternalGestureToFail(selStartGesture, selEndGesture)
+    .onBegin(() => { panStartScrollX.current = cutScrollXRef.current; })
+    .onUpdate((e) => { applyCutScroll(panStartScrollX.current - e.translationX); })
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) < 8 && Math.abs(e.translationY) < 8) {
+        const cw = waveformContainerWidthRef.current;
+        const contentW = cw * cutZoomRef.current;
+        const dur = durationMsRef.current;
+        const t = ((cutScrollXRef.current + e.x) / contentW) * dur;
+        onSeekComplete(Math.max(0, Math.min(dur, t)));
+      }
+    })
+    .runOnJS(true),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [selStartGesture, selEndGesture]);
+
+  const cutGesture = useMemo(() => Gesture.Simultaneous(cutPinch, cutPan),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [cutPinch, cutPan]);
 
   // Playback waveform total width (constant in playback mode)
   const waveformTotalW = WAVEFORM_BARS * (BAR_W + BAR_GAP);
@@ -441,54 +497,25 @@ export default function DetailScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
 
-  // Selection handle PanResponders (cut mode)
-  // In cut mode the waveform fills the container (containerWidth = full file),
-  // so we map screen pixels using containerWidth not the scrolling waveformTotalW.
-  const cutPxToMs = (dx: number): number => {
-    const dur = durationMsRef.current;
-    if (!cutModeRef.current) return dx * dur / waveformTotalWRef.current;
-    const cw = waveformContainerWidthRef.current || waveformTotalWRef.current;
-    return dx * dur / (cw * cutZoomRef.current);
-  };
-
-  const selStartPanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { abDragStartMs.current = selStartRef.current; },
-    onPanResponderMove: (_, g) => {
-      const dur = durationMsRef.current;
-      if (dur === 0) return;
-      const newPos = Math.max(0, Math.min(selEndRef.current - 500, abDragStartMs.current + cutPxToMs(g.dx)));
-      selStartRef.current = newPos;
-      setSelStart(newPos);
-    },
-    onPanResponderRelease: () => {},
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), []);
-
-  const selEndPanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { abDragStartMs.current = selEndRef.current; },
-    onPanResponderMove: (_, g) => {
-      const dur = durationMsRef.current;
-      if (dur === 0) return;
-      const newPos = Math.max(selStartRef.current + 500, Math.min(dur, abDragStartMs.current + cutPxToMs(g.dx)));
-      selEndRef.current = newPos;
-      setSelEnd(newPos);
-    },
-    onPanResponderRelease: () => {},
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), []);
-
-  // Scroll waveform so playhead stays centered
+  // Playback waveform: scroll so the playhead stays centered.
   useEffect(() => {
+    if (cutMode) return;
     if (!waveformScrollRef.current || durationMs === 0 || waveformContainerWidth === 0) return;
     const pos = seekPositionMs ?? positionMs_live;
     const x = (pos / durationMs) * waveformTotalW;
     waveformScrollRef.current.scrollTo({ x, animated: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth, waveformTotalW]);
+  }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth, waveformTotalW, cutMode]);
+
+  // Cut mode: while playing, follow the playhead (keep it centered, clamped at edges).
+  useEffect(() => {
+    if (!cutMode || !isPlaying) return;
+    const cw = waveformContainerWidthRef.current;
+    if (cw === 0 || durationMs === 0) return;
+    const contentW = cw * cutZoomRef.current;
+    applyCutScroll((positionMs_live / durationMs) * contentW - cw / 2);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionMs_live, cutMode, isPlaying, durationMs]);
 
   function reloadBookmarks() {
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -587,10 +614,23 @@ export default function DetailScreen() {
 
   function enterCutMode() {
     if (!recording) return;
-    const start = durationMs * 0.25;
-    const end   = durationMs * 0.75;
+    const dur = durationMs;
+    const pos = positionMs_live;
+    // Place the selection centered on the playhead; fall back to the middle
+    // 25–75 % if the playhead is right at the start or end.
+    let start: number, end: number;
+    const half = dur * 0.25;
+    if (pos < dur * 0.05 || pos > dur * 0.95) {
+      start = dur * 0.25; end = dur * 0.75;
+    } else {
+      start = Math.max(0, pos - half);
+      end   = Math.min(dur, pos + half);
+    }
     setSelStart(start); selStartRef.current = start;
     setSelEnd(end);     selEndRef.current   = end;
+    // Start zoomed out to show the whole file as an overview.
+    setCutZoom(1); cutZoomRef.current = 1;
+    setCutScrollX(0); cutScrollXRef.current = 0;
     setCutMode(true);
     setShowHeaderMenu(false);
   }
@@ -598,7 +638,8 @@ export default function DetailScreen() {
   function exitCutMode() {
     setCutMode(false);
     setIsCutProcessing(false);
-    setCutZoom(1); cutZoomRef.current = 1; cutScrollX.current = 0;
+    setCutZoom(1); cutZoomRef.current = 1;
+    setCutScrollX(0); cutScrollXRef.current = 0;
   }
 
   // Persists the cut output as a new recording, copying the original's metadata.
@@ -905,13 +946,13 @@ export default function DetailScreen() {
               onLayout={e => { const w = e.nativeEvent.layout.width; setWaveformContainerWidth(w); waveformContainerWidthRef.current = w; }}
             >
               {cutMode ? (
-                /* ── CUT MODE: zoomable full-file waveform (pinch to zoom) ─── */
-                <GestureDetector gesture={pinchGesture}>
+                /* ── CUT MODE: zoomable, scrollable waveform ───────────────── */
+                <GestureDetector gesture={cutGesture}>
                   <View style={StyleSheet.absoluteFill} collapsable={false}>
-                    {/* Bars — shifted left by cutScrollX, width scaled by cutZoom */}
+                    {/* Bars — content is containerWidth*zoom wide, shifted by scroll */}
                     <View pointerEvents="none" style={{
                       position: 'absolute', top: 0, bottom: 0,
-                      left: -cutScrollX.current,
+                      left: -cutScrollX,
                       width: waveformContainerWidth * cutZoom,
                       flexDirection: 'row', alignItems: 'center',
                     }}>
@@ -932,43 +973,47 @@ export default function DetailScreen() {
                     {durationMs > 0 && (
                       <View pointerEvents="none" style={{
                         position: 'absolute', top: 0, bottom: 0, zIndex: 2,
-                        left: (positionMs / durationMs) * waveformContainerWidth * cutZoom - cutScrollX.current - 1,
+                        left: (positionMs / durationMs) * waveformContainerWidth * cutZoom - cutScrollX - 1,
                         width: 2, backgroundColor: '#e53935',
                       }} />
                     )}
 
-                    {/* L handle */}
+                    {/* L handle (own gesture so it composes with container pinch/pan) */}
                     {durationMs > 0 && (
-                      <View
-                        {...selStartPanResponder.panHandlers}
-                        style={[styles.cutHandleView, {
-                          left: (selStart / durationMs) * waveformContainerWidth * cutZoom - cutScrollX.current - 12,
-                          zIndex: 4,
-                        }]}
-                      >
-                        <View style={styles.cutHandleTimestampPill}>
-                          <Text style={styles.cutHandleTimestampText}>{formatMs(selStart)}</Text>
+                      <GestureDetector gesture={selStartGesture}>
+                        <View
+                          style={[styles.cutHandleView, {
+                            left: (selStart / durationMs) * waveformContainerWidth * cutZoom - cutScrollX - 12,
+                            zIndex: 4,
+                          }]}
+                          collapsable={false}
+                        >
+                          <View style={styles.cutHandleTimestampPill}>
+                            <Text style={styles.cutHandleTimestampText}>{formatMs(selStart)}</Text>
+                          </View>
+                          <View style={styles.cutHandleLine} />
+                          <View style={styles.cutHandleTriangle} />
                         </View>
-                        <View style={styles.cutHandleLine} />
-                        <View style={styles.cutHandleTriangle} />
-                      </View>
+                      </GestureDetector>
                     )}
 
                     {/* R handle */}
                     {durationMs > 0 && (
-                      <View
-                        {...selEndPanResponder.panHandlers}
-                        style={[styles.cutHandleView, {
-                          left: (selEnd / durationMs) * waveformContainerWidth * cutZoom - cutScrollX.current - 12,
-                          zIndex: 4,
-                        }]}
-                      >
-                        <View style={styles.cutHandleTimestampPill}>
-                          <Text style={styles.cutHandleTimestampText}>{formatMs(selEnd)}</Text>
+                      <GestureDetector gesture={selEndGesture}>
+                        <View
+                          style={[styles.cutHandleView, {
+                            left: (selEnd / durationMs) * waveformContainerWidth * cutZoom - cutScrollX - 12,
+                            zIndex: 4,
+                          }]}
+                          collapsable={false}
+                        >
+                          <View style={styles.cutHandleTimestampPill}>
+                            <Text style={styles.cutHandleTimestampText}>{formatMs(selEnd)}</Text>
+                          </View>
+                          <View style={styles.cutHandleLine} />
+                          <View style={styles.cutHandleTriangle} />
                         </View>
-                        <View style={styles.cutHandleLine} />
-                        <View style={styles.cutHandleTriangle} />
-                      </View>
+                      </GestureDetector>
                     )}
 
                     {/* Zoom indicator — only shown when zoomed */}
