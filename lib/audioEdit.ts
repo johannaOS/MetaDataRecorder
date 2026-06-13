@@ -1,19 +1,15 @@
 import { trimAudio } from '@siteed/audio-studio';
-import { cacheDirectory, copyAsync, deleteAsync } from 'expo-file-system/legacy';
 
-function getExt(uri: string): string {
-  return uri.replace(/\?.*$/, '').match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase() ?? 'm4a';
-}
-
-// content:// URIs (MediaStore) are copied to a file:// cache path first so the
-// native trimmer can read them reliably.
-async function toFileUri(uri: string): Promise<{ uri: string; cleanup: () => void }> {
-  if (!uri.startsWith('content://')) return { uri, cleanup: () => {} };
-  const ext = getExt(uri);
-  const dest = `${cacheDirectory}trimin_${Date.now()}.${ext}`;
-  await copyAsync({ from: uri, to: dest });
-  return { uri: dest, cleanup: () => deleteAsync(dest, { idempotent: true }).catch(() => {}) };
-}
+/**
+ * Audio cut/trim via @siteed/audio-studio.
+ *
+ * The native AudioTrimmer reads the source with
+ * `MediaMetadataRetriever.setDataSource(context, Uri.parse(fileUri))`, which
+ * accepts both `content://` (MediaStore) and `file://` URIs directly — so we
+ * pass recording.filePath through unchanged. (A previous version copied
+ * content:// to a cache file first via legacy copyAsync, which crashed with
+ * "ENOENT (No such file or directory)".)
+ */
 
 /**
  * Keep only the selected range — discard everything outside [startMs, endMs].
@@ -24,19 +20,14 @@ export async function cutKeepSelected(
   startMs: number,
   endMs: number,
 ): Promise<string> {
-  const { uri: src, cleanup } = await toFileUri(inputUri);
-  try {
-    const result = await trimAudio({
-      fileUri: src,
-      mode: 'single',
-      startTimeMs: Math.round(startMs),
-      endTimeMs: Math.round(endMs),
-      outputFormat: { format: 'aac' },
-    });
-    return result.uri;
-  } finally {
-    cleanup();
-  }
+  const result = await trimAudio({
+    fileUri: inputUri,
+    mode: 'single',
+    startTimeMs: Math.round(startMs),
+    endTimeMs: Math.round(endMs),
+    outputFormat: { format: 'aac' },
+  });
+  return result.uri;
 }
 
 /**
@@ -49,16 +40,11 @@ export async function cutRemoveSelected(
   endMs: number,
   _totalDurationMs: number,
 ): Promise<string> {
-  const { uri: src, cleanup } = await toFileUri(inputUri);
-  try {
-    const result = await trimAudio({
-      fileUri: src,
-      mode: 'remove',
-      ranges: [{ startTimeMs: Math.round(startMs), endTimeMs: Math.round(endMs) }],
-      outputFormat: { format: 'aac' },
-    });
-    return result.uri;
-  } finally {
-    cleanup();
-  }
+  const result = await trimAudio({
+    fileUri: inputUri,
+    mode: 'remove',
+    ranges: [{ startTimeMs: Math.round(startMs), endTimeMs: Math.round(endMs) }],
+    outputFormat: { format: 'aac' },
+  });
+  return result.uri;
 }
