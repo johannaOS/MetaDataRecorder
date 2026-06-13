@@ -154,16 +154,14 @@ export default function DetailScreen() {
   const [isCutProcessing, setIsCutProcessing] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
 
-  // Cut mode zoom/scroll. zoom=1 → whole file fits the container (overview);
-  // zoom>1 → zoomed in, horizontally scrollable. Scroll is in content pixels.
+  // Cut mode zoom. zoom=1 → whole file fits the container (overview);
+  // zoom>1 → zoomed in. The horizontal scroll offset is NOT independent — it is
+  // always derived to keep the play cursor centered (same model as playback),
+  // so one-finger drag/tap moves the cursor and the waveform winds under it.
   const [cutZoom, setCutZoom] = useState(1);
-  const cutZoomRef    = useRef(1);
-  const [cutScrollX, setCutScrollX] = useState(0);
-  const cutScrollXRef = useRef(0);
-  const baseZoom      = useRef(1); // zoom at pinch start
-  const baseFocalFrac = useRef(0); // time-fraction under the pinch focal point
-  const panStartScrollX = useRef(0);
-  const handleBaseMs  = useRef(0); // selection-edge value at drag start
+  const cutZoomRef   = useRef(1);
+  const baseZoom     = useRef(1); // zoom at pinch start
+  const handleBaseMs = useRef(0); // selection-edge value at drag start
 
   // Scrub bar — maps visual waveform position to audio time correctly.
   // The playhead is fixed at center; tap/drag seeks to the visually shown position.
@@ -207,17 +205,18 @@ export default function DetailScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
 
-  // Clamp + commit a scroll offset (content px) for the cut-mode waveform.
-  const applyCutScroll = (x: number) => {
+  // Derived scroll offset (content px) that keeps the play cursor centered,
+  // given a play position and the current zoom. Same model as playback.
+  const cutScrollForPos = (posMs: number): number => {
     const cw = waveformContainerWidthRef.current;
+    const dur = durationMsRef.current;
+    if (cw === 0 || dur === 0) return 0;
     const contentW = cw * cutZoomRef.current;
-    const clamped = Math.max(0, Math.min(Math.max(0, contentW - cw), x));
-    cutScrollXRef.current = clamped;
-    setCutScrollX(clamped);
+    return Math.max(0, Math.min(Math.max(0, contentW - cw), (posMs / dur) * contentW - cw / 2));
   };
 
   // Per-handle pan gestures. Defined before the container pan so the container
-  // can require them to fail (touch a handle → move the handle, don't scroll).
+  // can require them to fail (touch a handle → move the handle, don't seek).
   const makeHandleGesture = (which: 'L' | 'R') => Gesture.Pan()
     .onBegin(() => { handleBaseMs.current = which === 'L' ? selStartRef.current : selEndRef.current; })
     .onUpdate((e) => {
@@ -238,39 +237,49 @@ export default function DetailScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   []);
 
-  // Pinch → zoom (1×–8×), anchored on the time under the focal point.
+  // Pinch → zoom (1×–8×). Scroll stays cursor-centered (derived), so the zoom
+  // is effectively anchored on the play cursor.
   const cutPinch = useMemo(() => Gesture.Pinch()
-    .onBegin((e) => {
-      const cw = waveformContainerWidthRef.current || 1;
-      baseZoom.current = cutZoomRef.current;
-      baseFocalFrac.current = (cutScrollXRef.current + e.focalX) / (cw * cutZoomRef.current);
-    })
+    .onBegin(() => { baseZoom.current = cutZoomRef.current; })
     .onUpdate((e) => {
-      const cw = waveformContainerWidthRef.current;
-      if (cw === 0) return;
       const newZoom = Math.max(1, Math.min(8, baseZoom.current * e.scale));
       cutZoomRef.current = newZoom;
       setCutZoom(newZoom);
-      applyCutScroll(baseFocalFrac.current * cw * newZoom - e.focalX);
     })
     .runOnJS(true),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   []);
 
-  // One-finger drag → scroll the zoomed waveform; a tap (no drag) → seek there.
-  // Requires the handle gestures to fail first, so dragging a handle never scrolls.
+  // One-finger drag → seek (cursor winds, waveform follows); tap → seek to the
+  // tapped position. Requires the handle gestures to fail so a handle drag never
+  // moves the play cursor. Direction matches playback: drag right = backward.
   const cutPan = useMemo(() => Gesture.Pan()
     .requireExternalGestureToFail(selStartGesture, selEndGesture)
-    .onBegin(() => { panStartScrollX.current = cutScrollXRef.current; })
-    .onUpdate((e) => { applyCutScroll(panStartScrollX.current - e.translationX); })
+    .onBegin(() => {
+      seekStartPosRef.current = positionMsLiveRef.current;
+      wasPlayingRef.current = isPlayingRef.current;
+      soundRef.current?.pauseAsync().catch(() => {});
+    })
+    .onUpdate((e) => {
+      const cw = waveformContainerWidthRef.current;
+      const dur = durationMsRef.current;
+      const contentW = cw * cutZoomRef.current;
+      const newPos = Math.max(0, Math.min(dur, seekStartPosRef.current - e.translationX * dur / contentW));
+      setSeekPositionMs(newPos);
+    })
     .onEnd((e) => {
+      const cw = waveformContainerWidthRef.current;
+      const dur = durationMsRef.current;
+      const contentW = cw * cutZoomRef.current;
+      let finalPos: number;
       if (Math.abs(e.translationX) < 8 && Math.abs(e.translationY) < 8) {
-        const cw = waveformContainerWidthRef.current;
-        const contentW = cw * cutZoomRef.current;
-        const dur = durationMsRef.current;
-        const t = ((cutScrollXRef.current + e.x) / contentW) * dur;
-        onSeekComplete(Math.max(0, Math.min(dur, t)));
+        // Tap → seek to the tapped position
+        const scroll = cutScrollForPos(seekStartPosRef.current);
+        finalPos = Math.max(0, Math.min(dur, ((scroll + e.x) / contentW) * dur));
+      } else {
+        finalPos = Math.max(0, Math.min(dur, seekStartPosRef.current - e.translationX * dur / contentW));
       }
+      onSeekComplete(finalPos);
     })
     .runOnJS(true),
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -507,15 +516,6 @@ export default function DetailScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positionMs_live, seekPositionMs, durationMs, waveformContainerWidth, waveformTotalW, cutMode]);
 
-  // Cut mode: while playing, follow the playhead (keep it centered, clamped at edges).
-  useEffect(() => {
-    if (!cutMode || !isPlaying) return;
-    const cw = waveformContainerWidthRef.current;
-    if (cw === 0 || durationMs === 0) return;
-    const contentW = cw * cutZoomRef.current;
-    applyCutScroll((positionMs_live / durationMs) * contentW - cw / 2);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionMs_live, cutMode, isPlaying, durationMs]);
 
   function reloadBookmarks() {
     setBookmarks(getBookmarksByRecording(Number(id)));
@@ -630,7 +630,6 @@ export default function DetailScreen() {
     setSelEnd(end);     selEndRef.current   = end;
     // Start zoomed out to show the whole file as an overview.
     setCutZoom(1); cutZoomRef.current = 1;
-    setCutScrollX(0); cutScrollXRef.current = 0;
     setCutMode(true);
     setShowHeaderMenu(false);
   }
@@ -639,7 +638,6 @@ export default function DetailScreen() {
     setCutMode(false);
     setIsCutProcessing(false);
     setCutZoom(1); cutZoomRef.current = 1;
-    setCutScrollX(0); cutScrollXRef.current = 0;
   }
 
   // Persists the cut output as a new recording, copying the original's metadata.
@@ -878,6 +876,13 @@ export default function DetailScreen() {
     { color: colors.text, borderColor: colors.icon + '55', backgroundColor: colors.background },
   ];
 
+  // Cut-mode content width + derived (cursor-centered) scroll offset for render.
+  const cutContentW = waveformContainerWidth * cutZoom;
+  const cutScroll = (cutMode && durationMs > 0 && waveformContainerWidth > 0)
+    ? Math.max(0, Math.min(Math.max(0, cutContentW - waveformContainerWidth),
+        (positionMs / durationMs) * cutContentW - waveformContainerWidth / 2))
+    : 0;
+
   return (
     <>
       <Stack.Screen
@@ -952,7 +957,7 @@ export default function DetailScreen() {
                     {/* Bars — content is containerWidth*zoom wide, shifted by scroll */}
                     <View pointerEvents="none" style={{
                       position: 'absolute', top: 0, bottom: 0,
-                      left: -cutScrollX,
+                      left: -cutScroll,
                       width: waveformContainerWidth * cutZoom,
                       flexDirection: 'row', alignItems: 'center',
                     }}>
@@ -973,7 +978,7 @@ export default function DetailScreen() {
                     {durationMs > 0 && (
                       <View pointerEvents="none" style={{
                         position: 'absolute', top: 0, bottom: 0, zIndex: 2,
-                        left: (positionMs / durationMs) * waveformContainerWidth * cutZoom - cutScrollX - 1,
+                        left: (positionMs / durationMs) * waveformContainerWidth * cutZoom - cutScroll - 1,
                         width: 2, backgroundColor: '#e53935',
                       }} />
                     )}
@@ -983,7 +988,7 @@ export default function DetailScreen() {
                       <GestureDetector gesture={selStartGesture}>
                         <View
                           style={[styles.cutHandleView, {
-                            left: (selStart / durationMs) * waveformContainerWidth * cutZoom - cutScrollX - 12,
+                            left: (selStart / durationMs) * waveformContainerWidth * cutZoom - cutScroll - 12,
                             zIndex: 4,
                           }]}
                           collapsable={false}
@@ -1002,7 +1007,7 @@ export default function DetailScreen() {
                       <GestureDetector gesture={selEndGesture}>
                         <View
                           style={[styles.cutHandleView, {
-                            left: (selEnd / durationMs) * waveformContainerWidth * cutZoom - cutScrollX - 12,
+                            left: (selEnd / durationMs) * waveformContainerWidth * cutZoom - cutScroll - 12,
                             zIndex: 4,
                           }]}
                           collapsable={false}
@@ -1041,9 +1046,14 @@ export default function DetailScreen() {
                     <View style={styles.waveformInner}>
                       {waveformBars.map((h, i) => {
                         const played = durationMs > 0 && (positionMs_live / durationMs) * WAVEFORM_BARS > i;
+                        // When an A/B loop is active, fade bars outside the loop.
+                        const loopActive = loopA !== null && loopB !== null;
+                        const barMs = durationMs > 0 ? (i / WAVEFORM_BARS) * durationMs : 0;
+                        const outsideLoop = loopActive && (barMs < loopA! || barMs > loopB!);
                         return (
                           <View key={i} style={[styles.waveBar, {
                             height: h,
+                            opacity: outsideLoop ? 0.25 : 1,
                             backgroundColor: played ? colors.text : colors.icon + '44',
                           }]} />
                         );
@@ -1088,8 +1098,8 @@ export default function DetailScreen() {
 
               {/* A/B markers — full-height, draggable, zIndex 3 */}
               {durationMs > 0 && [
-                { pos: loopA, label: 'A', color: '#00A878', panResponder: loopAPanResponder, loopKey: 'A' as const },
-                { pos: loopB, label: 'B', color: '#e53935', panResponder: loopBPanResponder, loopKey: 'B' as const },
+                { pos: loopA, label: 'A', color: '#FF9500', panResponder: loopAPanResponder, loopKey: 'A' as const },
+                { pos: loopB, label: 'B', color: '#FFCC00', panResponder: loopBPanResponder, loopKey: 'B' as const },
               ].map(({ pos, label, color, panResponder, loopKey }) => {
                 if (pos === null) return null;
                 const screenX = waveformContainerWidth / 2
@@ -1174,11 +1184,11 @@ export default function DetailScreen() {
                 hitSlop={8}
               >
                 <View style={styles.abIconWrap}>
-                  <Ionicons name="repeat" size={22} color={(loopA !== null || loopB !== null) ? colors.tint : colors.icon} />
-                  <Text style={[styles.abOverlay, { color: (loopA !== null || loopB !== null) ? colors.tint : colors.icon }]}>AB</Text>
+                  <Ionicons name="repeat" size={22} color={(loopA !== null || loopB !== null) ? '#FF9500' : colors.icon} />
+                  <Text style={[styles.abOverlay, { color: (loopA !== null || loopB !== null) ? '#FF9500' : colors.icon }]}>AB</Text>
                 </View>
                 {(loopA !== null || loopB !== null) && (
-                  <Text style={[styles.controlsSideBtnLabel, { color: colors.tint }]}>
+                  <Text style={[styles.controlsSideBtnLabel, { color: '#FF9500' }]}>
                     {loopA !== null && loopB !== null ? `${formatMs(loopA)}–${formatMs(loopB)}` : loopA !== null ? `A ${formatMs(loopA)}` : `B ${formatMs(loopB!)}`}
                   </Text>
                 )}
